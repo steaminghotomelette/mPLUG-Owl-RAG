@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Constants
-APP_NAME = "MM-RAG VQA Chat"
+PAGE_NAME = "MM-RAG VQA Chat"
 
 def main() -> None:
     """
@@ -19,7 +19,7 @@ def main() -> None:
     )
 
     # App Title
-    st.title(APP_NAME)
+    st.title(PAGE_NAME)
 
     # --------------------------------------------
     # Sidebar Configuration
@@ -46,31 +46,42 @@ def main() -> None:
         options=["Medical", "Forensics"],
         help="Choose the domain to tailor the LLM's responses."
     )
-    st.sidebar.write(f"Selected Domain: {domain}")
+
+    model = st.sidebar.selectbox(
+        "Select model",
+        options=["mPLUG-Owl3-7B"],
+        help="Choose the LLM to use."
+    )
 
     # --------------------------------------------
     # Chat Window
     # --------------------------------------------
-    
+
     # Initialize chat history in session state
     if "messages" not in st.session_state:
         st.session_state["messages"] = []
-    
+
     # Display chat history
     for message in st.session_state["messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    
+
     # Input prompt for the user
     if prompt := st.chat_input("Enter your message"):
-        # Append user message to the chat history
+        # Add user's message to the chat history
         st.session_state["messages"].append({"role": "user", "content": prompt})
 
         # Display user's message
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # TODO: Handle API request and add the bot's response to the chat history
+        # Simulate LLM response (dummy response for now)
+        dummy_response = "This is a placeholder response from the LLM."
+        st.session_state["messages"].append({"role": "assistant", "content": dummy_response})
+
+        # Display LLM's response
+        with st.chat_message("assistant"):
+            st.markdown(dummy_response)
 
 if __name__ == "__main__":
     main()
