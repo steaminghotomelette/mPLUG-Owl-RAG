@@ -24,13 +24,28 @@ def main() -> None:
     # --------------------------------------------
     # Sidebar Configuration
     # --------------------------------------------
-    st.sidebar.title("RAG Upload")
+    st.sidebar.title("RAG Configuration")
 
     # RAG Upload Section
+    st.sidebar.subheader("RAG Upload")
     media_file = st.sidebar.file_uploader(
         "Upload Text/Image/Video to RAG System",
         type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
         help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
+    )
+
+    # Metadata Input Section
+    metadata = st.sidebar.text_input(
+        "Enter metadata for the uploaded file",
+        help="Provide additional information about the uploaded file."
+    )
+
+    # RAG Settings Section
+    st.sidebar.subheader("RAG Settings")
+    embed_model = st.sidebar.selectbox(
+        "Select embedding model",
+        options=["CLIP"],
+        help="Choose the model used to embed documents."
     )
 
     # Submit Button TODO
