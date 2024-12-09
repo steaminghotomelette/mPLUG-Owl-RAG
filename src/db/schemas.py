@@ -1,50 +1,27 @@
-from pymilvus import MilvusClient, DataType, CollectionSchema
-from pymilvus.milvus_client import IndexParams
-from typing import Tuple
+import pyarrow as pa
+import lancedb
+import numpy as np
+from typing import Dict, Any
 
-def create_CLIP_schema(client: MilvusClient) -> Tuple[CollectionSchema, IndexParams]:
+def create_schema(db_path: str, dimension: int) -> pa.Schema:
     """ 
-    Creates a standard schema and index for a collection of vectors embedded with CLIP.
+    Creates a schema for a collection of vectors embedded with CLIP using LanceDB.
     
     Args:
-        client (MilvusClient): The Milvus client to use for schema and index creation.
+        db_path (str): The file path where the LanceDB database will be stored.
     
     Returns:
-        Tuple: A tuple containing the collection schema and index parameters.
+        lancedb.LanceTable: A configured LanceDB table for CLIP embeddings.
     """
     
     # --------------------------------------------
-    # Create Collection Schema
+    # Define Schema using PyArrow
     # --------------------------------------------
-    schema = client.create_schema(
-        auto_id=True, 
-        enable_dynamic_field=True
-    )
-
-    # Add fields to the schema
-    schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
-    schema.add_field(field_name="embedding", datatype=DataType.FLOAT_VECTOR, dim=512)
-    schema.add_field(field_name="metadata", datatype=DataType.VARCHAR, max_length=512)
-    schema.add_field(field_name="storage_link", datatype=DataType.VARCHAR, max_length=512)
+    schema = pa.schema([
+        pa.field('id', pa.int64()),  # Primary key
+        pa.field('embedding', pa.list_(pa.float32(), dimension)),  # Fixed-size embedding vector
+        pa.field('metadata', pa.string()),  # Metadata as string
+        pa.field('storage_link', pa.string())  # Link to storage location
+    ])
     
-    # --------------------------------------------
-    # Prepare Index Parameters
-    # --------------------------------------------
-    index_params = client.prepare_index_params()
-
-    # Define index for the "id" field
-    index_params.add_index(
-        field_name="id",
-        index_type="STL_SORT"
-    )
-
-    # Define index for the "embedding" field with additional parameters
-    index_params.add_index(
-        field_name="embedding", 
-        index_type="IVF_FLAT",
-        metric_type="L2",
-        params={"nlist": 1024}
-    )
-    
-    # Return schema and index parameters
-    return schema, index_params
+    return schema
