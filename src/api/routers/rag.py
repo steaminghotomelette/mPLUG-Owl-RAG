@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from db.connection import DBConnection
-from transformers import CLIPProcessor, CLIPModel
+from transformers import CLIPProcessor, CLIPModel, Blip2Model, AutoTokenizer, AutoProcessor
 from PIL import Image
 from io import BytesIO
 from typing import Dict, List
@@ -17,8 +17,13 @@ router = APIRouter(
 db = DBConnection()
 
 # Load embedding models (using CLIP)
-processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+
+clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+
+blip_model = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b")
+blip_tokenizer = AutoTokenizer.from_pretrained("Salesforce/blip2-opt-2.7b")
+blip_processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
 
 # --------------------------------------------
 # Post Endpoints
@@ -48,6 +53,7 @@ async def upload_document_to_rag(
     collection_name: str,
     document: UploadFile = File(...),
     metadata: str = Form(...),
+    embedding_model: str = Form(...)
 ) -> Dict:
     """
     Upload a file, extract embeddings, and store it in the database.
@@ -56,10 +62,19 @@ async def upload_document_to_rag(
         collection_name (str): Name of the collection to upload the file to.
         document (UploadFile): File to upload.
         metadata (str): Metadata associated with the file.
+        embedding_model (str): Embedding model to use for the file.
 
     Returns:
         dict: Success message or error details.
     """
+    match embedding_model:
+        case "CLIP":
+            processor = clip_processor
+            model = clip_model
+        case "BLIP":
+            processor = blip_processor
+            model = blip_model
+    
     try:
         # Read the file content
         file_content = await document.read()
@@ -108,7 +123,7 @@ async def upload_document_to_rag(
         }
         
         # Insert the data into the database
-        db.insert(collection_name, data)
+        db.insert(collection_name, [data])
         
         # Return success response
         return {"message": "File uploaded successfully."}

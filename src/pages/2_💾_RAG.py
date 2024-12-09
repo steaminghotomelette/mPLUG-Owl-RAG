@@ -1,6 +1,7 @@
 import streamlit as st
 from requests import post, get
 from typing import List
+import db.schemas
 
 # Constants
 PAGE_NAME = "RAG Management"
@@ -19,13 +20,13 @@ def create_collection(collection_name: str, embedding_model: str) -> dict:
     """
     url = f"{API_BASE_URL}/collections"
     payload = {
-        "collection_name": collection_name,
+        "collection_name": f"{collection_name}_{embedding_model}",
         "embedding_model": embedding_model
     }
     response = post(url, params=payload)
     return response.json()
 
-def upload_to_rag(collection_name: str, file: bytes, file_name: str, metadata: str, content_type: str) -> dict:
+def upload_to_rag(collection_name: str, file: bytes, file_name: str, metadata: str, content_type: str, embed_model: str) -> dict:
     """
     Upload a file to the RAG system using the API.
 
@@ -35,6 +36,7 @@ def upload_to_rag(collection_name: str, file: bytes, file_name: str, metadata: s
         file_name (str): The name of the file.
         metadata (str): Metadata associated with the file.
         content_type (str): MIME type of the file.
+        embed_model (str): The embedding model to use.
 
     Returns:
         dict: Response from the API.
@@ -42,8 +44,9 @@ def upload_to_rag(collection_name: str, file: bytes, file_name: str, metadata: s
     url = f"{API_BASE_URL}/upload/{collection_name}"
     files = {
         "document": (file_name, file, content_type),
+
     }
-    data = {"metadata": metadata}
+    data = {"metadata": metadata, "embedding_model": embed_model}
     response = post(url, files=files, data=data)
     return response.json()
 
@@ -109,7 +112,7 @@ def main() -> None:
     st.sidebar.subheader("RAG Settings")
     embed_model = st.sidebar.selectbox(
         "Select embedding model",
-        options=["CLIP"],
+        options=["CLIP", "BLIP"],
         help="Choose the model used to embed documents."
     )
 
@@ -123,7 +126,7 @@ def main() -> None:
                 content_type = media_file.type
 
                 # Make request to upload file
-                response = upload_to_rag(selected_collection, file_content, file_name, metadata, content_type)
+                response = upload_to_rag(selected_collection, file_content, file_name, metadata, content_type, embed_model)
                 st.success("File uploaded successfully!")
                 st.json(response)
 

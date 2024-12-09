@@ -1,7 +1,12 @@
-from pymilvus import MilvusClient
-import db.schemas
+import lancedb
+from typing import Union
+import db.schemas as schemas
 
-def create_CLIP_collection(client: MilvusClient, collection_name: str) -> None:
+def create_collection(
+    client: lancedb.db.DBConnection, 
+    collection_name: str,
+    dimension: int
+) -> None:
     """ 
     Creates a standard collection for vectors embedded with CLIP.
     
@@ -16,13 +21,13 @@ def create_CLIP_collection(client: MilvusClient, collection_name: str) -> None:
     # --------------------------------------------
     # Create Collection Schema and Index
     # --------------------------------------------
-    clip_schema, clip_index = db.schemas.create_CLIP_schema(client)
+    schema = schemas.create_schema(client, dimension)
 
     # --------------------------------------------
     # Create the Collection in Milvus
     # --------------------------------------------
-    client.create_collection(
-        collection_name=collection_name,
-        schema=clip_schema,
-        index_params=clip_index
+    client.create_table(
+            name=collection_name,
+            schema=schema,
+            mode="overwrite"  # Replace existing table if it exists
     )

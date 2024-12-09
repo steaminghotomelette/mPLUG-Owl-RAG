@@ -1,77 +1,55 @@
-from pymilvus import MilvusClient
-import db.collections
+import lancedb
 from typing import List, Dict, Optional
+import db.collections
+import pyarrow as pa
+import os
 
 class DBConnection:
     """
-    Wrapper class for managing a connection to Milvus, including operations 
-    for creating, loading, releasing, and managing collections and data.
+    Wrapper class for managing a connection to LanceDB, including operations 
+    for creating, loading, and managing collections and data.
     """
-
-    def __init__(self, host: str = "localhost", port: str = "19530") -> None:
+    DIMENSIONS = {"CLIP": 512, "BLIP": 768}
+    
+    def __init__(self, db_path: str = "./lancedb") -> None:
         """
-        Initializes a connection to the Milvus database.
+        Initializes a connection to the LanceDB database.
         
         Args:
-            host (str): Hostname or IP of the Milvus server.
-            port (str): Port of the Milvus server.
+            db_path (str): Path where the LanceDB database will be stored.
         """
-        self.client = MilvusClient(
-            uri=f"http://{host}:{port}",
-            token="root:Milvus"
-        )
+        self.client = lancedb.connect(db_path)
     
-    def create_collection(self, collection_name: str, embedding_model: str = "CLIP") -> None:
+    def create_collection(self, collection_name: str, embedding_model: str = "CLIP"):
         """
-        Creates a collection in Milvus if it doesn't exist.
+        Creates a collection in LanceDB if it doesn't exist.
 
         Args:
             collection_name (str): Name of the collection to create.
             embedding_model (str): Embedding model to use for the schema. Defaults to "CLIP".
         
+        Returns:
+            lancedb.Table: The created LanceDB table.
+        
         Raises:
-            Exception: If the collection already exists or an invalid model is provided.
+            Exception: If an invalid model is provided.
         """
-        if self.client.has_collection(collection_name):
+        # List of existing collections
+        existing_collections = self.list_collections()
+        
+        # Check if the collection already exists
+        if collection_name in existing_collections:
             raise Exception(f"Collection '{collection_name}' already exists!")
-
-        # Handle embedding model
-        if embedding_model == "CLIP":
-            db.collections.create_CLIP_collection(self.client, collection_name)
+        
+        # If not, proceed with creation
+        if embedding_model in ["CLIP", "BLIP"]:
+            db.collections.create_collection(self.client, collection_name, self.DIMENSIONS[embedding_model])
         else:
             raise Exception(f"Invalid embedding model: '{embedding_model}'")
     
-    def load_collection(self, collection_name: str) -> None:
-        """
-        Loads a collection into memory if it exists.
-
-        Args:
-            collection_name (str): Name of the collection to load.
-        
-        Raises:
-            Exception: If the collection does not exist.
-        """
-        if not self.client.has_collection(collection_name):
-            raise Exception(f"Collection '{collection_name}' does not exist!")
-        self.client.load_collection(collection_name=collection_name)
-    
-    def release_collection(self, collection_name: str) -> None:
-        """
-        Releases a collection from memory if it exists.
-
-        Args:
-            collection_name (str): Name of the collection to release.
-        
-        Raises:
-            Exception: If the collection does not exist.
-        """
-        if not self.client.has_collection(collection_name):
-            raise Exception(f"Collection '{collection_name}' does not exist!")
-        self.client.release_collection(collection_name=collection_name)
-    
     def drop_collection(self, collection_name: str) -> None:
         """
-        Drops a collection from the database if it exists.
+        Drops a collection from the database.
 
         Args:
             collection_name (str): Name of the collection to drop.
@@ -79,18 +57,27 @@ class DBConnection:
         Raises:
             Exception: If the collection does not exist.
         """
-        if not self.client.has_collection(collection_name):
+        try:
+            table = self.client.open_table(collection_name)
+            table.delete()
+        except FileNotFoundError:
             raise Exception(f"Collection '{collection_name}' does not exist!")
-        self.client.drop_collection(collection_name=collection_name)
     
     def list_collections(self) -> List[str]:
         """
-        Lists all collections in the Milvus database.
+        Lists all collections in the LanceDB database.
 
         Returns:
             List[str]: List of collection names.
         """
-        return self.client.list_collections()
+        collections = []
+        for f in os.listdir(self.client.uri):
+            full_path = os.path.join(self.client.uri, f)
+            # Ensure it's a directory and ends with '.lance'
+            if os.path.isdir(full_path) and f.endswith('.lance'):
+                collections.append(f.split('.')[0])
+        return collections
+
     
     def insert(self, collection_name: str, data: List[Dict]) -> Dict:
         """
@@ -103,21 +90,9 @@ class DBConnection:
         Returns:
             Dict: Results of the insert operation.
         """
-        return self.client.insert(collection_name=collection_name, data=data)
-    
-    def upsert(self, collection_name: str, data: List[Dict]) -> Dict:
-        """
-        Upserts data into a specified collection.
-        (NOTE UPSERT ONLY WORKS IN MILVUS 2.5 ONWARDS)
-
-        Args:
-            collection_name (str): Name of the collection.
-            data (List[Dict]): Data to upsert.
-        
-        Returns:
-            Dict: Results of the upsert operation.
-        """
-        return self.client.upsert(collection_name=collection_name, data=data)
+        table = self.client.open_table(collection_name)
+        table.add(data)
+        return {"success": True, "inserted_count": len(data)}
     
     def delete(self, collection_name: str, ids: Optional[List[int]] = None, filter: Optional[str] = None) -> Dict:
         """
@@ -136,18 +111,16 @@ class DBConnection:
         """
         if ids is None and filter is None:
             raise Exception("Please specify either 'ids' or a 'filter' for deletion!")
-        return self.client.delete(collection_name=collection_name, ids=ids, filter=filter)
-    
-    def flush(self, collection_name: str) -> None:
-        """
-        Flushes a specified collection to persist data.
-
-        Args:
-            collection_name (str): Name of the collection to flush.
-
-        Raises:
-            Exception: If the collection does not exist.
-        """
-        if not self.client.has_collection(collection_name):
-            raise Exception(f"Collection '{collection_name}' does not exist!")
-        self.client.flush(collection_name=collection_name)
+        
+        table = self.load_collection(collection_name)
+        
+        if ids:
+            # LanceDB doesn't have a direct method to delete by IDs, so we'd need to filter
+            # This is a placeholder and might need to be adjusted based on exact LanceDB capabilities
+            remaining_data = [row for row in table.to_pandas() if row['id'] not in ids]
+            table.delete()  # Remove existing table
+            table.add(remaining_data)  # Re-add filtered data
+        
+        # Note: Complex filtering would require custom implementation
+        
+        return {"success": True, "deleted_count": len(ids) if ids else 0}

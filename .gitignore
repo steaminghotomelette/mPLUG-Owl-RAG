@@ -5,6 +5,8 @@ __pycache__
 *.so
 scripts/data_prepare/data
 .venv
+src/lancedb
+venv
 
 #Megatron
 megatron/fused_kernels/build/
