@@ -15,7 +15,7 @@ class MplugOwl3ModelManager:
     # --------------------------------------------
     MODEL_NAME = "mPLUG-Owl3"
     MAX_NUM_FRAMES = 128  # Maximum number of video frames to sample
-    MAX_NEW_TOKENS = 100  # Maximum number of new tokens to generate
+    MAX_NEW_TOKENS = 2048  # Maximum number of new tokens to generate
     MIN_NEW_TOKENS = 0    # Minimum number of new tokens to generate
 
     # --------------------------------------------
