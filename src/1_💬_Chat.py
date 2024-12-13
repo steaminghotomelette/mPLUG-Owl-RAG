@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from typing import List, Dict
 import json
+from utils.embed_utils import EmbeddingModel
 
 # --------------------------------------------
 # Constants
@@ -126,6 +127,7 @@ def main() -> None:
         "image_history": [],
         "video_history": [],
         "messages": [],
+        "embedding_model": EmbeddingModel.DEFAULT.value
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
