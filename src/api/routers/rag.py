@@ -1,10 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from db.connection import DBConnection
-from transformers import CLIPProcessor, CLIPModel, Blip2Model, AutoTokenizer, AutoProcessor
-from PIL import Image
 from io import BytesIO
-from typing import Dict, List
+from typing import Dict
 from PyPDF2 import PdfReader
+from db.utils import USER_COLLECTION_NAME
+from utils.rag_utils import RAGManager
 
 # Initialize API router
 router = APIRouter(
@@ -13,44 +12,16 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-# Initialize database connection
-db = DBConnection()
-
-# Load embedding models (using CLIP)
-
-clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-
-blip_model = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b")
-blip_tokenizer = AutoTokenizer.from_pretrained("Salesforce/blip2-opt-2.7b")
-blip_processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+# Initialise RAG Manager that contains DBConnection and EmbeddingModelManager
+rag = RAGManager()
 
 # --------------------------------------------
 # Post Endpoints
 # --------------------------------------------
 
-@router.post("/collections")
-async def create_collection(collection_name: str, embedding_model: str) -> Dict:
-    """
-    Create a collection in the database.
 
-    Args:
-        collection_name (str): Name of the collection to create.
-        embedding_model (str): Embedding model to associate with the collection.
-
-    Returns:
-        dict: Success message or error details.
-    """
-    try:
-        db.create_collection(collection_name, embedding_model=embedding_model)
-        return {"message": "Collection created successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
-
-
-@router.post("/upload/{collection_name}")
+@router.post("/upload")
 async def upload_document_to_rag(
-    collection_name: str,
     document: UploadFile = File(...),
     metadata: str = Form(...),
     embedding_model: str = Form(...)
@@ -59,92 +30,86 @@ async def upload_document_to_rag(
     Upload a file, extract embeddings, and store it in the database.
 
     Args:
-        collection_name (str): Name of the collection to upload the file to.
-        document (UploadFile): File to upload.
+        document (UploadFile): File uploaded.
         metadata (str): Metadata associated with the file.
         embedding_model (str): Embedding model to use for the file.
 
     Returns:
         dict: Success message or error details.
     """
-    match embedding_model:
-        case "CLIP":
-            processor = clip_processor
-            model = clip_model
-        case "BLIP":
-            processor = blip_processor
-            model = blip_model
-    
+    text_embeddings_list = None
+    img_embeddings_list = None
+    raw_image = None
+    text_content = f"\nContext: {metadata}"
     try:
-        # Read the file content
+        # get the file bytes
         file_content = await document.read()
-
         # Validate file type
         allowed_types = [
             "application/pdf", "image/png", "image/jpeg",
             "video/mp4", "image/gif", "video/x-msvideo"
         ]
         if document.content_type not in allowed_types:
-            raise HTTPException(status_code=400, detail="Unsupported file type.")
-        
-        # Extract embeddings based on file type
-        embeddings = None
-        if document.content_type in ["image/png", "image/jpeg", "image/gif"]:
-            # Convert file content to a PIL image
-            try:
-                image = Image.open(BytesIO(file_content))
+            raise HTTPException(
+                status_code=400, detail="Unsupported file type.")
+        # Update embedding model
+        try:
+            rag.update_model(embedding_model)
+        except Exception as e:
+            raise Exception(f"Fail to switch embedding model: {e}")
+        collection_name = f"{USER_COLLECTION_NAME}_{
+            rag.embedding_model_manager.model_type.value}"
 
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid image format.")
-            
-            inputs = processor(images=image, return_tensors="pt", padding=True)
-            embeddings = model.get_image_features(**inputs).detach().numpy()
+        # Extract embeddings based on file type
+        if document.content_type in ["image/png", "image/jpeg", "image/gif"]:
+            img_embeddings_list, raw_image = rag.embedding_model_manager.embed_image(
+                file_content)
+            text_embeddings_list = rag.embedding_model_manager.embed_text(
+                text_content)
         else:
             # Extract text from PDF
             try:
                 pdf_reader = PdfReader(BytesIO(file_content))
-                text_content = " ".join([page.extract_text() for page in pdf_reader.pages])
-                
+                text_content = " ".join([page.extract_text()
+                                        for page in pdf_reader.pages]) + text_content
             except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Failed to extract PDF text: {str(e)}")
-            
-            # Create embeddings from extracted text
-            inputs = processor(text=[text_content], return_tensors="pt", padding=True)
-            embeddings = model.get_text_features(**inputs)[0].detach().numpy()
-        
-        # Convert numpy array to a list of floats to match float_vector requirement
-        embeddings_list = embeddings.flatten().tolist()
-        
+                raise HTTPException(
+                    status_code=400, detail=f"Failed to extract PDF text: {str(e)}")
+
+            text_embeddings_list = rag.embedding_model_manager.embed_text(
+                text_content)
+
         # Prepare the insertion payload
         data = {
-            "embedding": embeddings_list,  # Convert to list for serialization
+            "text": text_content,
+            "text_embedding": text_embeddings_list,
+            "image_embedding": img_embeddings_list,
+            "image_data": raw_image,
             "metadata": metadata,
-            "storage_link": "placeholder",  # TODO: Add actual storage link if applicable
         }
-        
+
         # Insert the data into the database
-        db.insert(collection_name, [data])
-        
-        # Return success response
-        return {"message": "File uploaded successfully."}
-   
+        response = rag.db.insert(collection_name, [data])
+        # Return response
+        return response
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to upload file: {str(e)}")
 
-# --------------------------------------------
-# Get Endpoints
-# --------------------------------------------
 
-@router.get("/collections")
-async def list_collections() -> Dict[str, List[str]]:
+@router.post("/reset_rag")
+def reset_user_table():
     """
-    Retrieve all collections in the database.
+    Endpoint to reset the user table in the RAG system.
+
+    This endpoint is used to clear all data in the user table of the RAG system.
 
     Returns:
-        dict: A dictionary containing a list of collection names.
+        None
     """
     try:
-        collections = db.list_collections()
-        return {"collections": collections}
+        return rag.reset_user_table()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch collections: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to reset user table: {str(e)}")
