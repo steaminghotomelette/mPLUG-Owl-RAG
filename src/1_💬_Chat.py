@@ -127,7 +127,8 @@ def main() -> None:
         "image_history": [],
         "video_history": [],
         "messages": [],
-        "embedding_model": EmbeddingModel.DEFAULT.value
+        "embedding_model": EmbeddingModel.DEFAULT.value,
+        "search_response": None,
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default_value

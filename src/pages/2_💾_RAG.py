@@ -1,24 +1,24 @@
 from io import BytesIO
+from typing import Dict, List
 from fastapi import UploadFile
 import streamlit as st
-from requests import post, get
+from requests import post, get, exceptions
 from PIL import Image
 from streamlit_pdf_viewer import pdf_viewer
 import tempfile
-from db.utils import USER_COLLECTION_NAME
 from utils.embed_utils import EmbeddingModel
+import pandas as pd
 
 # Constants
 PAGE_NAME = "RAG Management"
 API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
 
 
-def upload_to_rag(collection_name: str, media_file: UploadFile, metadata: str, embed_model: str) -> dict:
+def upload_to_rag(media_file: UploadFile, metadata: str, embed_model: str) -> dict:
     """
     Upload a file to the RAG system using the API.
 
     Args:
-        collection_name (str): The target collection name.
         file (bytes): The file content in bytes.
         file_name (str): The name of the file.
         metadata (str): Metadata associated with the file.
@@ -37,6 +37,37 @@ def upload_to_rag(collection_name: str, media_file: UploadFile, metadata: str, e
     return response.json()
 
 
+def search_rag(media_file: UploadFile | None, query: str, embed_model: str) -> dict:
+    """
+    Search RAG system using API.
+
+    Args:
+        media_file (UploadFile): The uploaded file.
+        query (str): Query to search RAG.
+        embed_model (str): The embedding model to use.
+
+    Returns:
+        dict: Response from the API.
+
+    """
+    try:
+        url = f"{API_BASE_URL}/search"
+        files = {}
+        if media_file:
+            file_content = (media_file.name,
+                            media_file.read(), media_file.type)
+            files["document"] = file_content
+        data = {"query": query, "embedding_model": embed_model}
+        response = post(url, files=files, data=data)
+        response.raise_for_status()
+        response = response.json()
+        return response
+    except exceptions.HTTPError as http_err:
+        raise Exception(f"HTTP error occurred: {http_err}")
+    except Exception as e:
+        raise Exception(f"Search RAG failed: {e}")
+
+
 def reset_rag():
     """
     Invoke reset of user collection for RAG using API.
@@ -50,6 +81,38 @@ def reset_rag():
     url = f"{API_BASE_URL}/reset_rag"
     response = post(url)
     return response.json()
+
+
+def display_search_result(result: List[Dict]):
+    """
+    Display RAG search result on interface.
+
+    Args:
+        result (List[Dict]): list of dicts containing search result
+
+    Returns:
+        None
+
+    """
+    # Convert the list of dictionaries into a DataFrame
+    df = pd.DataFrame(result)
+
+    # Drop the unwanted columns
+    df = df.drop(columns=["id", "_rowid", "text_embedding", "image_embedding"])
+    df['image_data'] = df['image_data'].apply(
+        lambda x: f'data:image/jpeg;base64,{x}')
+
+    df.rename(columns={
+        'text': 'Text',
+        'metadata': 'Metadata',
+        '_relevance_score': 'Initial Relevance Score',
+        '_weighted_relevance_score': 'Weighted Relevance Score'
+    }, inplace=True)
+
+    st.dataframe(df,
+                 column_config={
+                     "image_data": st.column_config.ImageColumn("Relevant Image")
+                 })
 
 
 def preview_file(media_file: UploadFile):
@@ -66,7 +129,7 @@ def preview_file(media_file: UploadFile):
     content_type = media_file.type
     try:
         # Preview Logic
-        st.subheader("Preview of File to Upload")
+        st.subheader("File Preview")
         left_co, cent_co, last_co = st.columns(3)
 
         if content_type.startswith("image"):
@@ -180,6 +243,7 @@ def main() -> None:
 
         media_file = st.file_uploader(
             "Upload Text/Image/Video to RAG System",
+            key="user_upload",
             type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
             help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
         )
@@ -205,7 +269,6 @@ def main() -> None:
                     # Make request to upload file
                     media_file.seek(0)
                     response = upload_to_rag(
-                        USER_COLLECTION_NAME,
                         media_file,
                         metadata,
                         embed_model)
@@ -226,6 +289,69 @@ def main() -> None:
     # --------------------------------------------
     # Search collection
     # --------------------------------------------
+    # RAG Upload Section
+    with st.expander("RAG Search", expanded=True):
+
+        search_media_file = st.file_uploader(
+            "Upload Text/Image/Video for Searching",
+            key="search_media",
+            type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
+            help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
+        )
+
+        if search_media_file:
+            try:
+                search_media_file.seek(0)
+                preview_file(search_media_file)
+            except Exception as e:
+                raise Exception(f"Error for previewing file: {e}")
+
+        # Query Input Section
+        query = st.text_input(
+            "Enter query",
+            help="Ask questions about uploaded document."
+        )
+
+        # Submit Button for File Upload
+        search_button = st.button("Search")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            # Toggle for displaying response raw json
+            response_debug_toggle = st.toggle("Display JSON output",
+                                              value=True,
+                                              help="Display the latest successful search JSON output")
+        with col2:
+            # Toggle for visualising search result
+            display_search_result_toggle = st.toggle("Visualise result",
+                                                     value=True,
+                                                     help="Display the latest successful search result")
+
+        if search_button:
+            try:
+                if search_media_file:
+                    search_media_file.seek(0)
+                try:
+                    response = search_rag(
+                        search_media_file, query, embed_model)
+                except Exception as e:
+                    raise Exception(f"Search RAG error: {e}")
+                if response['success']:
+                    st.session_state.embedding_model = embed_model
+                    sidebar_text.text(f"Current embedding model: \
+                        {st.session_state.embedding_model}")
+                    st.session_state['search_response'] = response
+
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+
+        if st.session_state.search_response:
+            if response_debug_toggle:
+                st.json(st.session_state.search_response)
+
+            if display_search_result_toggle:
+                display_search_result(
+                    st.session_state.search_response['message'])
 
 
 if __name__ == "__main__":

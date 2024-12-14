@@ -113,3 +113,48 @@ def reset_user_table():
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to reset user table: {str(e)}")
+
+
+@router.post("/search")
+async def search_rag(
+    document: UploadFile | None = None,
+    query: str = Form(...),
+    embedding_model: str = Form(...)
+) -> Dict:
+    """
+    Search top k relevant results from user, multimodal and document tables
+    using document and query.
+
+    Args:
+        document (UploadFile): File uploaded.
+        query (str): Query to search RAG.
+        embedding_model (str): Embedding model to use for the file.
+
+    Returns:
+        dict: Success message or error details.
+    """
+    try:
+        # get the file bytes
+        file_content = None
+        if document:
+            file_content = await document.read()
+            # Validate file type
+            allowed_types = [
+                "application/pdf", "image/png", "image/jpeg",
+                "video/mp4", "image/gif", "video/x-msvideo"
+            ]
+            if document.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400, detail="Unsupported file type.")
+
+        # Update embedding model
+        try:
+            rag.update_model(embedding_model)
+        except Exception as e:
+            raise Exception(f"Fail to switch embedding model: {e}")
+        # search
+        response = rag.search(text=query, image=file_content)
+        return response
+
+    except Exception as e:
+        raise Exception(f"Failed to search: {str(e)}")
