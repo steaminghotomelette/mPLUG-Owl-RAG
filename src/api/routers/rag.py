@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import Dict, List
 from PyPDF2 import PdfReader
 from api.routers import summarizer, chunker
+import os
 
 # Initialize API router
 router = APIRouter(
@@ -103,8 +104,9 @@ async def upload_document_to_rag(
         else:
             # Chunk and summarize text from PDF
             try:
-                chunk_text, chunk_metadata = chunker.split_document(BytesIO(file_content), max_size=70, chunk_overlap=20)
-                text_content = summarizer.contextualize_chunk(chunk_text, "\n".join(chunk_text))
+                chunk_text, chunk_metadata = chunker.split_document(BytesIO(file_content), \
+                    max_size=70, chunk_overlap=20)
+                text_content = summarizer.contextualize_chunks(chunk_text, os.getenv('GEMINI_API_KEY'))
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Failed to extract PDF text: {str(e)}")
             

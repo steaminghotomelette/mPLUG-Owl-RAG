@@ -1,11 +1,20 @@
 import requests
 import json
 
-def contextualize_chunk(chunks, document, api_key=""):
+def contextualize_chunks(chunks, api_key):
+    """
+    Uses the Gemini API to provide a context for each chunk of text.
+    
+    Args:
+        chunks (List[str]): Text chunks (when combined, comprise the entire document).
+        api_key (str): API key for the Gemini API.
+        
+    Returns:
+        List[str]: List of text chunks with context.
+    """
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
-    
+    document = " ".join(chunks)
     new_chunks = []
-    
     for chunk in chunks:
         prompt = f"""
         <document>
