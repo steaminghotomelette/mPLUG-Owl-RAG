@@ -44,7 +44,6 @@ def upload_to_rag(collection_name: str, file: bytes, file_name: str, metadata: s
     url = f"{API_BASE_URL}/upload/{collection_name}"
     files = {
         "document": (file_name, file, content_type),
-
     }
     data = {"metadata": metadata, "embedding_model": embed_model}
     response = post(url, files=files, data=data)

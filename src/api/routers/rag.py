@@ -5,6 +5,7 @@ from PIL import Image
 from io import BytesIO
 from typing import Dict, List
 from PyPDF2 import PdfReader
+from api.routers import summarizer, chunker
 
 # Initialize API router
 router = APIRouter(
@@ -100,11 +101,10 @@ async def upload_document_to_rag(
             inputs = processor(images=image, return_tensors="pt", padding=True)
             embeddings = model.get_image_features(**inputs).detach().numpy()
         else:
-            # Extract text from PDF
+            # Chunk and summarize text from PDF
             try:
-                pdf_reader = PdfReader(BytesIO(file_content))
-                text_content = " ".join([page.extract_text() for page in pdf_reader.pages])
-                
+                chunk_text, chunk_metadata = chunker.split_document(BytesIO(file_content), max_size=70, chunk_overlap=20)
+                text_content = summarizer.contextualize_chunk(chunk_text, "\n".join(chunk_text))
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Failed to extract PDF text: {str(e)}")
             
