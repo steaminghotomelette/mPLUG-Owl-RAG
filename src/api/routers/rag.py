@@ -1,7 +1,7 @@
+import os
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from io import BytesIO
 from typing import Dict
-from PyPDF2 import PdfReader
+from api.routers import summarizer, chunker
 from db.utils import USER_COLLECTION_NAME
 from utils.rag_utils import RAGManager
 
@@ -41,6 +41,7 @@ async def upload_document_to_rag(
     img_embeddings_list = None
     raw_image = None
     text_content = f"\nContext: {metadata}"
+    data = []
     try:
         # get the file bytes
         file_content = await document.read()
@@ -67,29 +68,38 @@ async def upload_document_to_rag(
             text_embeddings_list = rag.embedding_model_manager.embed_text(
                 text_content)
         else:
-            # Extract text from PDF
+            # Chunk and summarize text from PDF
             try:
-                pdf_reader = PdfReader(BytesIO(file_content))
-                text_content = " ".join([page.extract_text()
-                                        for page in pdf_reader.pages]) + text_content
+                chunk_text, chunk_metadata = chunker.split_document(file_content,
+                                                                    max_size=200, chunk_overlap=20)
+                text_content = summarizer.contextualize_chunks(
+                    chunk_text, os.getenv('GEMINI_API_KEY'))
             except Exception as e:
-                raise HTTPException(
-                    status_code=400, detail=f"Failed to extract PDF text: {str(e)}")
+                raise Exception(f"Failed to extract PDF text: {str(e)}")
 
-            text_embeddings_list = rag.embedding_model_manager.embed_text(
-                text_content)
+            for text in text_content:
+                text_embeddings_list = rag.embedding_model_manager.embed_text(
+                    text)
+                data.append({
+                    "text": text,
+                    "text_embedding": text_embeddings_list,
+                    "image_embedding": img_embeddings_list,
+                    "image_data": raw_image,
+                    "metadata": metadata,
+                })
 
         # Prepare the insertion payload
-        data = {
-            "text": text_content,
-            "text_embedding": text_embeddings_list,
-            "image_embedding": img_embeddings_list,
-            "image_data": raw_image,
-            "metadata": metadata,
-        }
+        if len(data) == 0:
+            data.append({
+                "text": text_content,
+                "text_embedding": text_embeddings_list,
+                "image_embedding": img_embeddings_list,
+                "image_data": raw_image,
+                "metadata": metadata,
+            })
 
         # Insert the data into the database
-        response = rag.db.insert(collection_name, [data])
+        response = rag.db.insert(collection_name, data)
         # Return response
         return response
 
