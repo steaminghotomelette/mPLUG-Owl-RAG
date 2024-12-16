@@ -58,8 +58,7 @@ async def upload_document_to_rag(
             rag.update_model(embedding_model)
         except Exception as e:
             raise Exception(f"Fail to switch embedding model: {e}")
-        collection_name = f"{USER_COLLECTION_NAME}_{
-            rag.embedding_model_manager.model_type.value}"
+        collection_name = f"{USER_COLLECTION_NAME}_{rag.embedding_model_manager.model_type.value}"
 
         # Extract embeddings based on file type
         if document.content_type in ["image/png", "image/jpeg", "image/gif"]:
