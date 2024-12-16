@@ -345,7 +345,7 @@ def main() -> None:
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
-        if st.session_state.search_response:
+        if 'search_response' in st.session_state and st.session_state.search_response:
             if response_debug_toggle:
                 st.json(st.session_state.search_response)
 
