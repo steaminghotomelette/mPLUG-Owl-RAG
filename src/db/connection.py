@@ -8,7 +8,7 @@ from utils.embed_utils import EmbeddingModel, EmbeddingModelManager
 
 class DBConnection:
     """
-    Wrapper class for managing a connection to LanceDB, including operations 
+    Wrapper class for managing a connection to LanceDB, including operations
     for creating, loading, and managing collections and data.
     """
 
@@ -39,8 +39,7 @@ class DBConnection:
         # List of existing collections
         existing_collections = self.list_collections()
 
-        collection_name_model = f"{collection_name}_{
-            embedding_model.model_type.name}"
+        collection_name_model = f"{collection_name}_{embedding_model.model_type.name}"
         # Check if the collection already exists
         if collection_name_model in existing_collections:
             return self.client.open_table(collection_name_model)

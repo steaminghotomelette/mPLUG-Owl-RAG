@@ -11,9 +11,11 @@ try:
     clip_model = CLIPModel.from_pretrained(
         "openai/clip-vit-base-patch32", load_in_8bit=True)
 
-    blip_model = Blip2Model.from_pretrained(
-        "Salesforce/blip2-opt-2.7b", load_in_8bit=True)
-    blip_processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    # Temporarily disabled
+    # blip_model = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b", load_in_8bit=True)
+    # blip_processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    blip_model = None
+    blip_processor = None
 except Exception as e:
     raise Exception(f"Error loading models: {e}")
 
@@ -24,7 +26,7 @@ class EmbeddingModel(Enum):
     """
     BLIP = "BLIP"
     CLIP = "CLIP"
-    DEFAULT = BLIP
+    DEFAULT = CLIP
 
 
 class EmbeddingModelManager:
