@@ -43,6 +43,7 @@ async def upload_document_to_rag(
     text_content = f"\nContext: {metadata}"
     data = []
     try:
+        switch_model(embedding_model)
         # get the file bytes
         file_content = await document.read()
         # Validate file type
@@ -53,11 +54,6 @@ async def upload_document_to_rag(
         if document.content_type not in allowed_types:
             raise HTTPException(
                 status_code=400, detail="Unsupported file type.")
-        # Update embedding model
-        try:
-            rag.update_model(embedding_model)
-        except Exception as e:
-            raise Exception(f"Fail to switch embedding model: {e}")
         collection_name = f"{USER_COLLECTION_NAME}_{rag.embedding_model_manager.model_type.value}"
 
         # Extract embeddings based on file type
@@ -143,6 +139,7 @@ async def search_rag(
         dict: Success message or error details.
     """
     try:
+        switch_model(embedding_model)
         # get the file bytes
         file_content = None
         if document:
@@ -156,14 +153,25 @@ async def search_rag(
                 raise HTTPException(
                     status_code=400, detail="Unsupported file type.")
 
-        # Update embedding model
-        try:
-            rag.update_model(embedding_model)
-        except Exception as e:
-            raise Exception(f"Fail to switch embedding model: {e}")
-        # search
-        response = rag.search(text=query, image=file_content)
-        return response
+            elif document.content_type in ['video/mp4', 'video/x-msvideo']:
+                response = rag.search_video(text=query, video=file_content)
+                return response
+                    
+            else:
+                # search
+                response = rag.search(text=query, image=file_content)
+                return response
 
     except Exception as e:
         raise Exception(f"Failed to search: {str(e)}")
+
+
+def switch_model(embedding_model:str):
+    """
+    Switch rag manager's embedding model to specified one.
+    """
+    # Update embedding model
+    try:
+        rag.update_model(embedding_model)
+    except Exception as e:
+        raise Exception(f"Fail to switch embedding model: {e}")

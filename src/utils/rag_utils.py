@@ -1,11 +1,15 @@
 import base64
 from datetime import datetime
+from io import BytesIO
+import tempfile
 import pyarrow as pa
 from lancedb.rerankers import RRFReranker
 from db.connection import DBConnection
 from db.utils import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTION_NAME
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from lancedb.table import LanceHybridQueryBuilder
+from api.routers.chat import mplug_owl3_manager
+
 
 USER_WEIGHT = 0.4
 MULTIMODAL_WEIGHT = 0.4
@@ -278,3 +282,40 @@ class RAGManager():
             return {"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "success": True, "message": res}
         except Exception as e:
             raise Exception(f"Error searching: {e}")
+        
+    def search_video(self, text: str, video: bytes) -> dict:
+        """
+        Performs search for text and video input on user, multimodal and document table.
+        Video frames are sampled and each frame is used to search the RAG.
+        Results are combined and deduplicated.
+
+        Args:
+            text (str): text to search
+            video (bytes): video to search
+
+        Returns:
+            Dict: dictionary of 'success' and 'message' containing search result.
+        """
+        try:
+            response = []
+            # Write bytes to a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+                temp_video.write(video)
+                temp_video.flush()
+                images_list = mplug_owl3_manager.encode_video(temp_video.name)
+                
+                # Process each frame sampled
+                for image in images_list:
+                    image_bytes = BytesIO()
+                    image.save(image_bytes, format="JPEG")
+                    image_bytes.seek(0)
+                    file_content = image_bytes
+                    # combine all responses
+                    response.extend(self.search(text=text, image=file_content)['message'])
+                
+                response = pa.Table.from_pylist(response)
+                res = self.reranker._deduplicate(response)
+                res = res.to_pylist()
+                return {"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "success": True, "message": res}
+        except Exception as e:
+            raise Exception(f"Error searching video: {e}")
