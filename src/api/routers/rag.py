@@ -40,7 +40,7 @@ async def upload_document_to_rag(
     text_embeddings_list = None
     img_embeddings_list = None
     raw_image = None
-    text_content = f"\nContext: {metadata}"
+    text_content = f"{metadata}"
     data = []
     try:
         switch_model(embedding_model)
