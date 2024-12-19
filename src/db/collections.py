@@ -160,7 +160,7 @@ def insert_vqa(table: lancedb.db.Table,
     data = data['train'][:5]
     batch_data = []
 
-    for image, q, a in zip(data['image'], data['question'], data['answer']):
+    for i, (image, q, a) in enumerate(zip(data['image'], data['question'], data['answer'])):
         text = f"question: {q}, answer: {a}"
         metadata = None
         bytes_io = BytesIO()
@@ -171,6 +171,7 @@ def insert_vqa(table: lancedb.db.Table,
 
         batch_data.append(
             {
+                "id": i+1,
                 "text": text,
                 "text_embedding": text_embedding,
                 "image_embedding": img_embbeding,

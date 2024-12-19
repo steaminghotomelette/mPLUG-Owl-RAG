@@ -2,6 +2,7 @@ import base64
 from datetime import datetime
 from io import BytesIO
 import tempfile
+import numpy as np
 import pyarrow as pa
 from lancedb.rerankers import RRFReranker
 from db.connection import DBConnection
@@ -14,7 +15,7 @@ from api.routers.chat import mplug_owl3_manager
 USER_WEIGHT = 0.4
 MULTIMODAL_WEIGHT = 0.4
 DOCUMENT_WEIGHT = 0.2
-
+_concat_tables_args = {"promote_options": "default"}
 
 class RAGManager():
     def __init__(self):
@@ -127,7 +128,6 @@ class RAGManager():
                                         fts_columns="text")\
                 .vector(search_txt_embedding)\
                 .text(text)\
-                .select(["text", "metadata"])\
                 .limit(3)\
                 .rerank(self.reranker)
             return res
@@ -219,8 +219,8 @@ class RAGManager():
             raise Exception(f"Failed creating weighted table: {e}")
 
     def combine_results(self, user: pa.Table,
-                        multimodal: LanceHybridQueryBuilder,
-                        docs: LanceHybridQueryBuilder,
+                        multimodal: LanceHybridQueryBuilder | pa.Table,
+                        docs: LanceHybridQueryBuilder | pa.Table,
                         w_user: float = USER_WEIGHT,
                         w_mm: float = MULTIMODAL_WEIGHT,
                         w_doc: float = DOCUMENT_WEIGHT) -> pa.Table:
@@ -245,7 +245,6 @@ class RAGManager():
             u = self.weighted_table(user, w_user)
             m = self.weighted_table(multimodal, w_mm)
             d = self.weighted_table(docs, w_doc)
-            _concat_tables_args = {"promote_options": "default"}
             res = pa.concat_tables([u, m, d], **_concat_tables_args)
             res = res.sort_by(
                 [("_weighted_relevance_score", "descending")]
@@ -253,6 +252,24 @@ class RAGManager():
             return res
         except Exception as e:
             raise Exception(f"Failed combining results: {e}")
+        
+    def deduplicate(self, table: pa.Table):
+        """
+        Deduplicate the table based on the `id` column.
+        """
+        try:
+            row_id = table.column("id")
+
+            # deduplicate
+            mask = np.full((table.shape[0]), False)
+            _, mask_indices = np.unique(np.array(row_id), return_index=True)
+            mask[mask_indices] = True
+            deduped_table = table.filter(mask=mask)
+
+            return deduped_table
+        except Exception as e:
+            raise Exception(f"Failed deduplication: {table.schema} {e}")
+    
 
     def search(self, text: str, image: bytes | None) -> dict:
         """
@@ -304,18 +321,32 @@ class RAGManager():
                 temp_video.flush()
                 images_list = mplug_owl3_manager.encode_video(temp_video.name)
                 
+                u,m,d = pa.Table.from_pydict({}), pa.Table.from_pydict({}), pa.Table.from_pydict({})
+
                 # Process each frame sampled
                 for image in images_list:
                     image_bytes = BytesIO()
                     image.save(image_bytes, format="JPEG")
                     image_bytes.seek(0)
                     file_content = image_bytes
-                    # combine all responses
-                    response.extend(self.search(text=text, image=file_content)['message'])
-                
-                response = pa.Table.from_pylist(response)
-                res = self.reranker._deduplicate(response)
+                    # Search for each frame
+                    u = pa.concat_tables([u, self.search_user(text, file_content)], **_concat_tables_args)
+                    m = pa.concat_tables([m, self.search_multimodal(text, file_content).to_arrow()], **_concat_tables_args)
+                    d = pa.concat_tables([d, self.search_documents(text).to_arrow()], **_concat_tables_args)                    
+
+                # combine all responses
+                u = self.deduplicate(u)
+                m = self.deduplicate(m)
+                d = self.deduplicate(d)
+
+                res = self.combine_results(user=u, multimodal=m, docs=d)
                 res = res.to_pylist()
+                for data in res:
+                    if 'image_data' in data:
+                        if data['image_data'] is not None:
+                            data['image_data'] = base64.b64encode(
+                                data['image_data']).decode("utf-8")
+
                 return {"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "success": True, "message": res}
         except Exception as e:
             raise Exception(f"Error searching video: {e}")
