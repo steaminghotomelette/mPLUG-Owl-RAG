@@ -37,7 +37,7 @@ def upload_to_rag(media_file: UploadFile, metadata: str, embed_model: str) -> di
     return response.json()
 
 
-def search_rag(media_file: UploadFile | None, query: str, embed_model: str) -> dict:
+def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
     """
     Search RAG system using API.
 
@@ -52,14 +52,12 @@ def search_rag(media_file: UploadFile | None, query: str, embed_model: str) -> d
     """
     try:
         url = f"{API_BASE_URL}/search"
-        files = {}
-        if media_file:
-            file_content = (media_file.name,
-                            media_file.read(), media_file.type)
-            files["document"] = file_content
+        files = []
+        for file in files_upload:
+            files.append(("files", (file.name, file.read(), file.type)))
+
         data = {"query": query, "embedding_model": embed_model}
         response = post(url, files=files, data=data)
-        response.raise_for_status()
         response = response.json()
         return response
     except exceptions.HTTPError as http_err:
@@ -129,7 +127,6 @@ def preview_file(media_file: UploadFile):
     content_type = media_file.type
     try:
         # Preview Logic
-        st.subheader("File Preview")
         left_co, cent_co, last_co = st.columns(3)
 
         if content_type.startswith("image"):
@@ -249,6 +246,7 @@ def main() -> None:
         )
 
         if media_file:
+            st.subheader("File Preview")
             try:
                 media_file.seek(0)
                 preview_file(media_file)
@@ -289,20 +287,23 @@ def main() -> None:
     # --------------------------------------------
     # Search collection
     # --------------------------------------------
-    # RAG Upload Section
+    # RAG Search Section
     with st.expander("RAG Search", expanded=True):
 
         search_media_file = st.file_uploader(
             "Upload Text/Image/Video for Searching",
+            accept_multiple_files=True,
             key="search_media",
             type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
             help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
         )
 
         if search_media_file:
+            st.subheader("File Preview")
             try:
-                search_media_file.seek(0)
-                preview_file(search_media_file)
+                for file in search_media_file:
+                    file.seek(0)
+                    preview_file(file)
             except Exception as e:
                 raise Exception(f"Error for previewing file: {e}")
 
@@ -330,7 +331,8 @@ def main() -> None:
         if search_button:
             try:
                 if search_media_file:
-                    search_media_file.seek(0)
+                    for file in search_media_file:
+                        file.seek(0)
                 try:
                     response = search_rag(
                         search_media_file, query, embed_model)

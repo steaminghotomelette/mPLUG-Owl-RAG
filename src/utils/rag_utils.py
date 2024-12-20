@@ -255,17 +255,21 @@ class RAGManager():
         
     def deduplicate(self, table: pa.Table):
         """
-        Deduplicate the table based on the `id` column.
+        Deduplicate the table based on the `id` and `text` column.
         """
         try:
-            row_id = table.column("id")
+            if isinstance(table, list):
+                table = pa.Table.from_pylist(table)
+
+            row_id = np.array(table.column("id"))
+            row_text = np.array(table.column("text"))
 
             # deduplicate
             mask = np.full((table.shape[0]), False)
-            _, mask_indices = np.unique(np.array(row_id), return_index=True)
-            mask[mask_indices] = True
-            deduped_table = table.filter(mask=mask)
-
+            combined = np.array(list(zip(row_id.tolist(), row_text.tolist())))
+            _, mask_indices = np.unique(combined, axis=0,return_index=True)
+            deduped_table = table.take(mask_indices)
+            
             return deduped_table
         except Exception as e:
             raise Exception(f"Failed deduplication: {table.schema} {e}")

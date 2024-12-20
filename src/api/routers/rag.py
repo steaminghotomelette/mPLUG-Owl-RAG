@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import Dict
@@ -122,7 +123,7 @@ def reset_user_table():
 
 @router.post("/search")
 async def search_rag(
-    document: UploadFile | None = None,
+    files: list[UploadFile] = File(None),
     query: str = Form(...),
     embedding_model: str = Form(...)
 ) -> Dict:
@@ -131,7 +132,7 @@ async def search_rag(
     using document and query.
 
     Args:
-        document (UploadFile): File uploaded.
+        files (list[UploadFile]): List of files uploaded.
         query (str): Query to search RAG.
         embedding_model (str): Embedding model to use for the file.
 
@@ -140,27 +141,35 @@ async def search_rag(
     """
     try:
         switch_model(embedding_model)
-        # get the file bytes
+
         file_content = None
-        if document:
-            file_content = await document.read()
+
+        if not files:
+            response = rag.search(text=query, image=file_content)
+            return response
+
+        response = []
+        for file in files:
+            # get the file bytes
+            file_content = await file.read()
             # Validate file type
             allowed_types = [
                 "application/pdf", "image/png", "image/jpeg",
                 "video/mp4", "image/gif", "video/x-msvideo"
             ]
-            if document.content_type not in allowed_types:
+            if file.content_type not in allowed_types:
                 raise HTTPException(
                     status_code=400, detail="Unsupported file type.")
 
-            elif document.content_type in ['video/mp4', 'video/x-msvideo']:
-                response = rag.search_video(text=query, video=file_content)
-                return response
+            elif file.content_type in ['video/mp4', 'video/x-msvideo']:
+                response.extend(rag.search_video(text=query, video=file_content)['message'])
                     
             else:
                 # search
-                response = rag.search(text=query, image=file_content)
-                return response
+                response.extend(rag.search(text=query, image=file_content)['message'])
+
+        response = rag.deduplicate(response).to_pylist()
+        return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'message': response}            
 
     except Exception as e:
         raise Exception(f"Failed to search: {str(e)}")
