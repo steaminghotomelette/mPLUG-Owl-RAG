@@ -7,6 +7,7 @@ from PIL import Image
 from streamlit_pdf_viewer import pdf_viewer
 import tempfile
 from utils.embed_utils import EmbeddingModel
+from utils.rag_utils import search_rag
 import pandas as pd
 
 # Constants
@@ -35,35 +36,6 @@ def upload_to_rag(media_file: UploadFile, metadata: str, embed_model: str) -> di
     data = {"metadata": metadata, "embedding_model": embed_model}
     response = post(url, files=files, data=data)
     return response.json()
-
-
-def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
-    """
-    Search RAG system using API.
-
-    Args:
-        media_file (UploadFile): The uploaded file.
-        query (str): Query to search RAG.
-        embed_model (str): The embedding model to use.
-
-    Returns:
-        dict: Response from the API.
-
-    """
-    try:
-        url = f"{API_BASE_URL}/search"
-        files = []
-        for file in files_upload:
-            files.append(("files", (file.name, file.read(), file.type)))
-
-        data = {"query": query, "embedding_model": embed_model}
-        response = post(url, files=files, data=data)
-        response = response.json()
-        return response
-    except exceptions.HTTPError as http_err:
-        raise Exception(f"HTTP error occurred: {http_err}")
-    except Exception as e:
-        raise Exception(f"Search RAG failed: {e}")
 
 
 def reset_rag():

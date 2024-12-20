@@ -2,9 +2,11 @@ import base64
 from datetime import datetime
 from io import BytesIO
 import tempfile
+from typing import List
 import numpy as np
 import pyarrow as pa
 from lancedb.rerankers import RRFReranker
+from requests import post, exceptions
 from db.connection import DBConnection
 from db.utils import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTION_NAME
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
@@ -16,6 +18,38 @@ USER_WEIGHT = 0.4
 MULTIMODAL_WEIGHT = 0.4
 DOCUMENT_WEIGHT = 0.2
 _concat_tables_args = {"promote_options": "default"}
+API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
+
+
+def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
+    """
+    Search RAG system using API.
+
+    Args:
+        media_file (UploadFile): The uploaded file.
+        query (str): Query to search RAG.
+        embed_model (str): The embedding model to use.
+
+    Returns:
+        dict: Response from the API.
+
+    """
+    try:
+        url = f"{API_BASE_URL}/search"
+        files = []
+        for file in files_upload:
+            files.append(("files", (file.name, file.read(), file.type)))
+
+        data = {"query": query, "embedding_model": embed_model}
+        response = post(url, files=files, data=data)
+        response = response.json()
+        return response
+    except exceptions.HTTPError as http_err:
+        raise Exception(f"HTTP error occurred: {http_err}")
+    except Exception as e:
+        raise Exception(f"Search RAG failed: {e}")
+
+
 
 class RAGManager():
     def __init__(self):
