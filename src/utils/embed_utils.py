@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from transformers import CLIPProcessor, CLIPModel, Blip2Model, AutoProcessor
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 from enum import Enum
 
 # Load models
@@ -100,7 +100,8 @@ class EmbeddingModelManager:
         except Exception as e:
             raise HTTPException(
                 status_code=400, detail=f"Invalid image format: {e}")
-
+        
+        image = self.preprocess_image(image)
         inputs = self.processor(images=image, return_tensors="pt",
                                 padding=True, truncation=True)
         embeddings = self.get_image_embedding(
@@ -108,6 +109,24 @@ class EmbeddingModelManager:
         img_embeddings_list = embeddings.flatten().tolist()
         return img_embeddings_list, raw_image
 
+    def preprocess_image(self, image):
+        """
+        Preprocesses the image by resizing, normalizing, and enhancing quality.
+
+        Args:
+            image (PIL.Image): The image to preprocess.
+
+        Returns:
+            PIL.Image: The preprocessed image.
+        """
+        target_size = (224, 224)
+        image = ImageOps.fit(image, target_size, Image.ANTIALIAS)
+
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        return image
+    
     def embed_text(self, text: str):
         """
         Processes a given text and generates its embeddings.
