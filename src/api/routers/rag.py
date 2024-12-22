@@ -1,10 +1,10 @@
 from datetime import datetime
 import os
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Dict
+from typing import Dict, List
 from api.routers import summarizer, chunker
 from db.utils import USER_COLLECTION_NAME
-from utils.rag_utils import RAGManager
+from utils.rag_utils import RAGManager, switch_model, rag_search
 
 # Initialize API router
 router = APIRouter(
@@ -19,8 +19,6 @@ rag = RAGManager()
 # --------------------------------------------
 # Post Endpoints
 # --------------------------------------------
-
-
 @router.post("/upload")
 async def upload_document_to_rag(
     document: UploadFile = File(...),
@@ -44,7 +42,7 @@ async def upload_document_to_rag(
     text_content = f"{metadata}"
     data = []
     try:
-        switch_model(embedding_model)
+        switch_model(rag, embedding_model)
         # get the file bytes
         file_content = await document.read()
         # Validate file type
@@ -123,7 +121,7 @@ def reset_user_table():
 
 @router.post("/search")
 async def search_rag(
-    files: list[UploadFile] = File(None),
+    files: List[UploadFile] = File(None),
     query: str = Form(...),
     embedding_model: str = Form(...)
 ) -> Dict:
@@ -139,48 +137,4 @@ async def search_rag(
     Returns:
         dict: Success message or error details.
     """
-    try:
-        switch_model(embedding_model)
-
-        file_content = None
-
-        if not files:
-            response = rag.search(text=query, image=file_content)
-            return response
-
-        response = []
-        for file in files:
-            # get the file bytes
-            file_content = await file.read()
-            # Validate file type
-            allowed_types = [
-                "application/pdf", "image/png", "image/jpeg",
-                "video/mp4", "image/gif", "video/x-msvideo"
-            ]
-            if file.content_type not in allowed_types:
-                raise HTTPException(
-                    status_code=400, detail="Unsupported file type.")
-
-            elif file.content_type in ['video/mp4', 'video/x-msvideo']:
-                response.extend(rag.search_video(text=query, video=file_content)['message'])
-                    
-            else:
-                # search
-                response.extend(rag.search(text=query, image=file_content)['message'])
-
-        response = rag.deduplicate(response).to_pylist()
-        return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'message': response}            
-
-    except Exception as e:
-        raise Exception(f"Failed to search: {str(e)}")
-
-
-def switch_model(embedding_model:str):
-    """
-    Switch rag manager's embedding model to specified one.
-    """
-    # Update embedding model
-    try:
-        rag.update_model(embedding_model)
-    except Exception as e:
-        raise Exception(f"Fail to switch embedding model: {e}")
+    return await rag_search(rag, files, query, embedding_model)

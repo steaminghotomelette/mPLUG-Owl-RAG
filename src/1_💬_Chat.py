@@ -48,7 +48,7 @@ def format_for_mplug_owl3(prompt: str) -> str:
 # API Requests
 # --------------------------------------------
 def request_mplug_owl3_response(
-    message_history: List[Dict[str, str]], image_history: List, video_history: List
+    message_history: List[Dict[str, str]], image_history: List, video_history: List, prompt: str
 ) -> Dict:
     """
     Send a request to the backend for a response from the mPLUG-Owl3 model.
@@ -67,7 +67,7 @@ def request_mplug_owl3_response(
     for video in video_history:
         files.append(("files", (video.name, video.getvalue(), video.type)))
 
-    payload = {"message_history": json.dumps(message_history)}
+    payload = {"message_history": json.dumps(message_history), "prompt": prompt}
 
     try:
         response = requests.post(
@@ -202,6 +202,7 @@ def main() -> None:
             st.session_state["message_history"],
             st.session_state["image_history"],
             st.session_state["video_history"],
+            prompt
         )
 
         llm_response = response.get("response", "Error: No response from backend.")

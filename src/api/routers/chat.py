@@ -1,5 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from utils.mplug_utils import MplugOwl3ModelManager
+from utils.rag_utils import rag_search, create_prompt
+from api.routers.rag import rag
 from typing import List, Dict
 import json
 import os
@@ -23,7 +25,8 @@ mplug_owl3_manager = MplugOwl3ModelManager("./iic/mPLUG-Owl3-1B-241014")
 @router.post("/mplug_owl3")
 async def chat_with_mplug_owl3(
     files: List[UploadFile] = File(None),
-    message_history: str = Form(...)
+    message_history: str = Form(...),
+    prompt: str = Form(...)
 ) -> Dict:
     """
     Endpoint to interact with the mPLUG-Owl3 model. Handles file uploads and prepares inputs for processing.
@@ -36,9 +39,20 @@ async def chat_with_mplug_owl3(
         Dict: Processed response containing the model's output.
     """
     try:
-        # Parse the message history
+        # RAG related (limited to text insertion presently)
+        context = await rag_search(rag, files, prompt, "CLIP")
+        text_data = [document["text"] for document in context["message"]]
+
+        # Reset file pointers after rag_search
+        if files:
+            for file in files:
+                await file.seek(0)
+
+        # Parse the message history and prepare prompt
         parsed_messages = json.loads(message_history)
-        parsed_messages.append({"role": "assistant", "content": ""})  # Placeholder for model response
+        rag_prompt = create_prompt(parsed_messages.pop()["content"], text_data)
+        parsed_messages.append({"role": "user", "content": rag_prompt})
+        parsed_messages.append({"role": "assistant", "content": ""})
 
         # Ensure temporary directory exists
         temp_dir = "./tmp"

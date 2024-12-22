@@ -11,15 +11,15 @@ from db.connection import DBConnection
 from db.utils import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTION_NAME
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from lancedb.table import LanceHybridQueryBuilder
-from api.routers.chat import mplug_owl3_manager
-
+from utils.mplug_utils import MplugOwl3ModelManager
+from fastapi import UploadFile
+from langchain.prompts import PromptTemplate
 
 USER_WEIGHT = 0.4
 MULTIMODAL_WEIGHT = 0.4
 DOCUMENT_WEIGHT = 0.2
 _concat_tables_args = {"promote_options": "default"}
 API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
-
 
 def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
     """
@@ -48,8 +48,6 @@ def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
         raise Exception(f"HTTP error occurred: {http_err}")
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
-
-
 
 class RAGManager():
     def __init__(self):
@@ -357,7 +355,7 @@ class RAGManager():
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
                 temp_video.write(video)
                 temp_video.flush()
-                images_list = mplug_owl3_manager.encode_video(temp_video.name)
+                images_list = MplugOwl3ModelManager.encode_video(temp_video.name)
                 
                 u,m,d = pa.Table.from_pydict({}), pa.Table.from_pydict({}), pa.Table.from_pydict({})
 
@@ -388,3 +386,91 @@ class RAGManager():
                 return {"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "success": True, "message": res}
         except Exception as e:
             raise Exception(f"Error searching video: {e}")
+        
+async def rag_search(rag_manager: RAGManager, files: List[UploadFile], query: str, embedding_model: str) -> dict:
+        """
+        Search top k relevant results from user, multimodal and document tables
+        using document and query.
+
+        Args:
+            files (list[UploadFile]): List of files uploaded.
+            query (str): Query to search RAG.
+            embedding_model (str): Embedding model to use for the file.
+
+        Returns:
+            dict: Success message or error details.
+        """
+        try:
+            switch_model(rag_manager, embedding_model)
+
+            file_content = None
+
+            if not files:
+                result = rag_manager.search(text=query, image=file_content)
+                return result
+
+            result = []
+            for file in files:
+                # get the file bytes
+                file_content = await file.read()
+                # Validate file type
+                allowed_types = [
+                    "application/pdf", "image/png", "image/jpeg",
+                    "video/mp4", "image/gif", "video/x-msvideo"
+                ]
+                if file.content_type not in allowed_types:
+                    raise ValueError("Unsupported file type.")
+
+                elif file.content_type in ['video/mp4', 'video/x-msvideo']:
+                    result.extend(rag_manager.search_video(text=query, video=file_content)['message'])
+                        
+                else:
+                    # search
+                    result.extend(rag_manager.search(text=query, image=file_content)['message'])
+
+            result = rag_manager.deduplicate(result).to_pylist()
+            return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'message': result}            
+
+        except Exception as e:
+            raise Exception(f"Failed to search: {str(e)}")
+
+def switch_model(rag_manager: RAGManager, embedding_model:str):
+    """
+    Switch rag manager's embedding model to specified one.
+    """
+    # Update embedding model
+    try:
+        rag_manager.update_model(embedding_model)
+    except Exception as e:
+        raise Exception(f"Fail to switch embedding model: {e}")
+    
+def format_context(chunks):
+    """
+    Formats a list of text chunks into a single string suitable for insertion into the prompt.
+    """
+    return "\n\n".join(f"- {chunk}" for chunk in chunks)
+
+def create_prompt(user_query, retrieved_chunks):
+    """
+    Constructs a final prompt using the query and retrieved chunks.
+    """
+    formatted_context = format_context(retrieved_chunks)
+    rag_prompt = PromptTemplate(
+        input_variables=["user_query", "retrieved_context"],
+        template=(
+            "You are a highly knowledgeable assistant specializing in answering questions accurately.\n\n"
+            "**Query:**\n"
+            "{user_query}\n\n"
+            "**Contextual Information:**\n"
+            "The following is the relevant context retrieved for this query:\n"
+            "{retrieved_context}\n\n"
+            "**Instructions:**\n"
+            "1. Base your response primarily on the retrieved context.\n"
+            "2. If the context does not fully address the query, use your general knowledge to supplement the answer, "
+            "but indicate this clearly.\n"
+            "3. Cite specific details from the provided context to strengthen your answer.\n\n"
+            "**Response:**"
+        )
+    )
+    # Fill in the template
+    return rag_prompt.format(user_query=user_query, retrieved_context=formatted_context)
