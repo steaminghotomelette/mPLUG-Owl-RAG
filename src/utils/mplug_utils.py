@@ -137,8 +137,8 @@ class MplugOwl3ModelManager:
             Any: Model response.
         """
         # Encode media inputs
-        encoded_images = [self.encode_image(image) for image in images] if images else None
-        encoded_videos = [self.encode_video(video) for video in videos] if videos else None
+        encoded_images = [self.encode_image(image) for image in images] if images else []
+        encoded_videos = [self.encode_video(video) for video in videos] if videos else []
 
         # Inference with the model
         return self.model.chat(
