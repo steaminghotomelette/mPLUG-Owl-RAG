@@ -87,6 +87,16 @@ class DBConnection:
             if os.path.isdir(full_path) and f.endswith('.lance'):
                 collections.append(f.split('.')[0])
         return collections
+    
+    def count(self, collection_name: str) -> int:
+        """
+        Returns number of items in collection.
+
+        Returns:
+            int: count of items in collection.
+        """
+        table = self.client.open_table(collection_name)
+        return table.count_rows()
 
     def insert(self, collection_name: str, data: List[Dict]) -> Dict:
         """
@@ -101,6 +111,9 @@ class DBConnection:
         """
         table = self.client.open_table(collection_name)
         before = table.count_rows()
+        # Assign id for each entry
+        for i in range(len(data)):
+            data[i]['id'] = before+i+1
         table.add(data)
         after = table.count_rows()
         if after > before:

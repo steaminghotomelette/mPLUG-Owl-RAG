@@ -94,7 +94,11 @@ class EmbeddingModelManager:
 
         """
         try:
-            raw_image = BytesIO(file_content)
+            if isinstance(file_content, bytes):
+                raw_image = BytesIO(file_content)
+            else:
+                assert (isinstance(file_content, BytesIO))
+                raw_image = file_content
             image = Image.open(raw_image)
             raw_image = raw_image.getvalue()
         except Exception as e:

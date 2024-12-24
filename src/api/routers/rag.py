@@ -1,9 +1,10 @@
+from datetime import datetime
 import os
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Dict
+from typing import Dict, List
 from api.routers import summarizer, chunker
 from db.utils import USER_COLLECTION_NAME
-from utils.rag_utils import RAGManager
+from utils.rag_utils import RAGManager, switch_model, rag_search
 
 # Initialize API router
 router = APIRouter(
@@ -18,8 +19,6 @@ rag = RAGManager()
 # --------------------------------------------
 # Post Endpoints
 # --------------------------------------------
-
-
 @router.post("/upload")
 async def upload_document_to_rag(
     document: UploadFile = File(...),
@@ -40,9 +39,10 @@ async def upload_document_to_rag(
     text_embeddings_list = None
     img_embeddings_list = None
     raw_image = None
-    text_content = f"\nContext: {metadata}"
+    text_content = f"{metadata}"
     data = []
     try:
+        switch_model(rag, embedding_model)
         # get the file bytes
         file_content = await document.read()
         # Validate file type
@@ -53,11 +53,6 @@ async def upload_document_to_rag(
         if document.content_type not in allowed_types:
             raise HTTPException(
                 status_code=400, detail="Unsupported file type.")
-        # Update embedding model
-        try:
-            rag.update_model(embedding_model)
-        except Exception as e:
-            raise Exception(f"Fail to switch embedding model: {e}")
         collection_name = f"{USER_COLLECTION_NAME}_{rag.embedding_model_manager.model_type.value}"
 
         # Extract embeddings based on file type
@@ -126,7 +121,7 @@ def reset_user_table():
 
 @router.post("/search")
 async def search_rag(
-    document: UploadFile | None = None,
+    files: List[UploadFile] = File(None),
     query: str = Form(...),
     embedding_model: str = Form(...)
 ) -> Dict:
@@ -135,35 +130,11 @@ async def search_rag(
     using document and query.
 
     Args:
-        document (UploadFile): File uploaded.
+        files (list[UploadFile]): List of files uploaded.
         query (str): Query to search RAG.
         embedding_model (str): Embedding model to use for the file.
 
     Returns:
         dict: Success message or error details.
     """
-    try:
-        # get the file bytes
-        file_content = None
-        if document:
-            file_content = await document.read()
-            # Validate file type
-            allowed_types = [
-                "application/pdf", "image/png", "image/jpeg",
-                "video/mp4", "image/gif", "video/x-msvideo"
-            ]
-            if document.content_type not in allowed_types:
-                raise HTTPException(
-                    status_code=400, detail="Unsupported file type.")
-
-        # Update embedding model
-        try:
-            rag.update_model(embedding_model)
-        except Exception as e:
-            raise Exception(f"Fail to switch embedding model: {e}")
-        # search
-        response = rag.search(text=query, image=file_content)
-        return response
-
-    except Exception as e:
-        raise Exception(f"Failed to search: {str(e)}")
+    return await rag_search(rag, files, query, embedding_model)

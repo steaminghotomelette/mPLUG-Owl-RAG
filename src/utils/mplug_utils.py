@@ -68,7 +68,8 @@ class MplugOwl3ModelManager:
     # --------------------------------------------
     # Media Encoding Functions
     # --------------------------------------------
-    def encode_video(self, video: Union[str, object]) -> List[Image.Image]:
+    @classmethod
+    def encode_video(cls, video: Union[str, object]) -> List[Image.Image]:
         """
         Encode a video into a list of uniformly sampled frames.
 
@@ -87,13 +88,14 @@ class MplugOwl3ModelManager:
         frame_indices = list(range(0, len(vr), round(vr.get_avg_fps())))
 
         # Sample frames if necessary
-        if len(frame_indices) > self.MAX_NUM_FRAMES:
-            frame_indices = uniform_sample(frame_indices, self.MAX_NUM_FRAMES)
+        if len(frame_indices) > cls.MAX_NUM_FRAMES:
+            frame_indices = uniform_sample(frame_indices, cls.MAX_NUM_FRAMES)
 
         frames = vr.get_batch(frame_indices).asnumpy()
         return [Image.fromarray(frame.astype("uint8")) for frame in frames]
 
-    def encode_image(self, image: Union[Image.Image, str, object]) -> Image.Image:
+    @classmethod
+    def encode_image(cls, image: Union[Image.Image, str, object]) -> Image.Image:
         """
         Convert an input to a PIL Image.
 
@@ -135,8 +137,8 @@ class MplugOwl3ModelManager:
             Any: Model response.
         """
         # Encode media inputs
-        encoded_images = [self.encode_image(image) for image in images] if images else None
-        encoded_videos = [self.encode_video(video) for video in videos] if videos else None
+        encoded_images = [self.encode_image(image) for image in images] if images else []
+        encoded_videos = [self.encode_video(video) for video in videos] if videos else []
 
         # Inference with the model
         return self.model.chat(
