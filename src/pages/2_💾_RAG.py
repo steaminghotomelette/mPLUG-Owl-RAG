@@ -15,7 +15,7 @@ PAGE_NAME = "RAG Management"
 API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
 
 
-def upload_to_rag(media_file: UploadFile, metadata: str, embed_model: str) -> dict:
+def upload_to_rag(files_upload: List[UploadFile], metadata: List[str], embed_model: str) -> dict:
     """
     Upload a file to the RAG system using the API.
 
@@ -30,9 +30,9 @@ def upload_to_rag(media_file: UploadFile, metadata: str, embed_model: str) -> di
         dict: Response from the API.
     """
     url = f"{API_BASE_URL}/upload"
-    files = {
-        "document": (media_file.name, media_file.read(), media_file.type),
-    }
+    files = []
+    for file in files_upload:
+            files.append(("files", (file.name, file.read(), file.type)))
     data = {"metadata": metadata, "embedding_model": embed_model}
     response = post(url, files=files, data=data)
     return response.json()
@@ -64,86 +64,75 @@ def display_search_result(result: List[Dict]):
         None
 
     """
-    # Convert the list of dictionaries into a DataFrame
-    df = pd.DataFrame(result)
-
-    # Drop the unwanted columns
-    df = df.drop(columns=["id", "_rowid", "text_embedding", "image_embedding"])
-    df['image_data'] = df['image_data'].apply(
-        lambda x: f'data:image/jpeg;base64,{x}')
-
+    df = pd.DataFrame(result).drop(columns=["id", "_rowid", "text_embedding", "image_embedding"], errors='ignore')
+    df['image_data'] = df['image_data'].apply(lambda x: f'data:image/jpeg;base64,{x}')
     df.rename(columns={
         'text': 'Text',
         'metadata': 'Metadata',
         '_relevance_score': 'Initial Relevance Score',
         '_weighted_relevance_score': 'Weighted Relevance Score'
     }, inplace=True)
-
-    st.dataframe(df,
-                 column_config={
-                     "image_data": st.column_config.ImageColumn("Relevant Image")
-                 })
+    st.dataframe(df, column_config={"image_data": st.column_config.ImageColumn("Relevant Image")})
 
 
-def preview_file(media_file: UploadFile):
+def preview_file(file: UploadFile):
     """
     Interface for previewing uploaded files at user interface.
 
     Args:
-        media_file (UploadFile): File uploaded via streamlit upload button
+        file (UploadFile): File uploaded via streamlit upload button
 
     Returns:
         None
     """
-    file_name = media_file.name
-    content_type = media_file.type
     try:
-        # Preview Logic
-        left_co, cent_co, last_co = st.columns(3)
+        content_type = file.type
+        file.seek(0)  # Reset file pointer
 
         if content_type.startswith("image"):
-
-            raw_image = BytesIO(media_file.read())
-            image = Image.open(raw_image)
-            raw_image = raw_image.getvalue()
-
-            # If the file is an image
-            image = Image.open(media_file)
-            original_width, original_height = image.size
-            target_width = 300
-            target_height = int(
-                (target_width / original_width) * original_height)
-            resized_image = image.resize((target_width, target_height))
-            with cent_co:
-                st.image(resized_image,
-                         caption=f"Preview of {file_name}",)
+            image = Image.open(BytesIO(file.read()))
+            resized_image = image.resize((300, int((300 / image.width) * image.height)))
+            st.image(resized_image, caption=f"Preview of {file.name}")
 
         elif content_type == "application/pdf":
-            # If the file is a PDF
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-                temp_pdf.write(media_file.read())
-                temp_pdf_path = temp_pdf.name
+                temp_pdf.write(file.read())
+                pdf_viewer(temp_pdf.name, height=600)
 
-            # Use streamlit_pdf_viewer to render PDF
-            pdf_viewer(temp_pdf_path, height=600)
-
-        elif content_type.startswith("text") or file_name.endswith(".txt"):
-            # If the file is text
-            file_content = media_file.read().decode("utf-8")
-            st.text_area("Text File Preview", file_content, height=300)
+        elif content_type.startswith("text") or file.name.endswith(".txt"):
+            st.text_area("Text File Preview", file.read().decode("utf-8"), height=300)
 
         elif content_type.startswith("video"):
-            # If the file is a video
-            with tempfile.NamedTemporaryFile(delete=False, suffix=file_name.split('.')[-1]) as temp_video:
-                temp_video.write(media_file.read())
-                temp_video_path = temp_video.name
-            with cent_co:
-                st.video(temp_video_path)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file.name.split('.')[-1]) as temp_video:
+                temp_video.write(file.read())
+                st.video(temp_video.name)
 
         else:
             st.warning("Preview is not supported for this file type.")
     except Exception as e:
-        st.error(f"An error occurred while processing the file: {e}")
+        st.error(f"An error occurred while previewing the file: {e}")
+
+def sidebar_configuration():
+    """
+    Sidebar configuration code for streamlit ui
+    """
+    st.sidebar.title("RAG Configuration")
+    st.sidebar.subheader("RAG Settings")
+    sidebar_text = st.sidebar.empty()
+    sidebar_text.text(f"Current embedding model: \
+                        {st.session_state.embedding_model}")
+    
+    options = [model.value for model in EmbeddingModel]
+    index = options.index(st.session_state.get("embedding_model", EmbeddingModel.DEFAULT.value))
+    embed_model = st.sidebar.selectbox("Select embedding model",
+                                        options=options, 
+                                        index=index,
+                                        key="embed_model")
+    if embed_model != st.session_state.embedding_model:
+        st.sidebar.warning("Switching the embedding model will store results separately.")
+
+    if st.sidebar.button("Reset RAG", help='Resets the RAG documents uploaded.'):
+        st.toast(reset_rag())
 
 
 def main() -> None:
@@ -151,7 +140,7 @@ def main() -> None:
     Main function to render the RAG Management app.
     """
     # --------------------------------------------
-    # Page Configuration
+    # Page & Sidebar Configuration
     # --------------------------------------------
     st.set_page_config(
         page_title="RAG",
@@ -159,125 +148,60 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    st.title(PAGE_NAME)
 
     if "embedding_model" not in st.session_state:
         st.session_state['embedding_model'] = EmbeddingModel.DEFAULT.value
 
-    # App Title
-    st.title(PAGE_NAME)
-
-    # --------------------------------------------
-    # Sidebar Configuration
-    # --------------------------------------------
-    st.sidebar.title("RAG Configuration")
-
-    # RAG Settings Section
-    st.sidebar.subheader("RAG Settings")
-    sidebar_text = st.sidebar.empty()
-    sidebar_text.text(f"Current embedding model: \
-                        {st.session_state.embedding_model}")
-    # Get the list of options from the EmbeddingModel enum
-    options = [model.value for model in EmbeddingModel]
-
-    # Find the index of the current embedding model in the enum list
-    if st.session_state.embedding_model:
-        index = options.index(st.session_state.embedding_model)
-    else:
-        # Default to DEFAULT if no session state is set
-        index = options.index(EmbeddingModel.DEFAULT.value)
-
-    embed_model = st.sidebar.selectbox(
-        "Select embedding model",
-        options=options,
-        index=index,
-        help="Choose the model used to embed documents."
-    )
-
-    if embed_model and embed_model != st.session_state.embedding_model:
-        st.sidebar.warning("Switching the embedding model will store results separately. \
-                       Files uploaded with a different embedding model will not be accessible."
-                           )
-
-    reset_btn = st.sidebar.button("Reset RAG",
-                                  help='Resets the RAG documents uploaded.')
-    if reset_btn:
-        response = reset_rag()
-        st.toast(response)
-
+    sidebar_configuration()
+    
     # --------------------------------------------
     # Main Window
     # --------------------------------------------
     # RAG Upload Section
     with st.expander("RAG Upload", expanded=True):
-
-        media_file = st.file_uploader(
-            "Upload Text/Image/Video to RAG System",
-            key="user_upload",
-            type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
-            help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
-        )
-
-        if media_file:
+        files = st.file_uploader("Upload Files",
+                                accept_multiple_files=True,
+                                type=["pdf", "png", "jpg", "jpeg", "gif"],
+                                key="upload")
+        if files:
             st.subheader("File Preview")
-            try:
-                media_file.seek(0)
-                preview_file(media_file)
-            except Exception as e:
-                raise Exception(f"Error for previewing file: {e}")
+            for file in files:
+                preview_file(file)
 
-        # Metadata Input Section
-        metadata = st.text_input(
-            "Enter metadata for the uploaded file",
-            help="Provide additional information about the uploaded file."
-        )
+            metadata = [st.text_input(f"Metadata for {file.name}") for file in files]
 
-        # Submit Button for File Upload
-        upload_button = st.button("Upload")
-        if upload_button:
-            if media_file:
+            if st.button("Upload"):
                 try:
-                    # Make request to upload file
-                    media_file.seek(0)
-                    response = upload_to_rag(
-                        media_file,
-                        metadata,
-                        embed_model)
-                    if response['success']:
-                        st.success(response['message'])
-                        st.session_state.embedding_model = embed_model
-                        sidebar_text.text(f"Current embedding model: \
-                            {st.session_state.embedding_model}")
-                    else:
-                        st.error(response['message'])
+                    for file in files:
+                        file.seek(0)
+                    response = upload_to_rag(files, metadata, st.session_state.get("embed_model"))
+                    if response.get('success'):
+                        st.session_state['embedding_model'] = st.session_state.get("embed_model")
+                        st.success(response.get('message', 'Upload successful.'))  
+                    else: st.error(response.get('message', 'Upload failed.'))
                     st.json(response)
-
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
-            else:
-                st.error("Please upload a file.")
+                    st.error(f"Error during upload: {e}")
 
-    # --------------------------------------------
-    # Search collection
-    # --------------------------------------------
     # RAG Search Section
     with st.expander("RAG Search", expanded=True):
-
         search_media_file = st.file_uploader(
             "Upload Text/Image/Video for Searching",
             accept_multiple_files=True,
             key="search_media",
-            type=["pdf", "png", "jpg", "jpeg", "gif", "mp4", "avi"],
-            help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF), videos (MP4, AVI)."
+            type=["pdf", "png", "jpg", "jpeg", "gif"],
+            help="Supported formats: PDF, images (PNG, JPG, JPEG, GIF)"
         )
 
         if search_media_file:
             st.subheader("File Preview")
-            try:
-                for file in search_media_file:
+            for file in search_media_file:
+                try:
                     file.seek(0)
                     preview_file(file)
-            except Exception as e:
-                raise Exception(f"Error for previewing file: {e}")
+                except Exception as e:
+                    st.error(f"Error previewing file {file.name}: {e}")
 
         # Query Input Section
         query = st.text_input(
@@ -286,46 +210,41 @@ def main() -> None:
         )
 
         # Submit Button for File Upload
-        search_button = st.button("Search")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            # Toggle for displaying response raw json
-            response_debug_toggle = st.toggle("Display JSON output",
-                                              value=True,
-                                              help="Display the latest successful search JSON output")
-        with col2:
-            # Toggle for visualising search result
-            display_search_result_toggle = st.toggle("Visualise result",
-                                                     value=True,
-                                                     help="Display the latest successful search result")
-
-        if search_button:
+        if st.button("Search"):
             try:
                 if search_media_file:
                     for file in search_media_file:
                         file.seek(0)
-                try:
-                    response = search_rag(
-                        search_media_file, query, embed_model)
-                except Exception as e:
-                    raise Exception(f"Search RAG error: {e}")
-                if response['success']:
-                    st.session_state.embedding_model = embed_model
-                    sidebar_text.text(f"Current embedding model: \
-                        {st.session_state.embedding_model}")
+                response = search_rag(search_media_file, query, st.session_state.get("embed_model"))
+                if response.get('success'):
+                    st.session_state['embedding_model'] = st.session_state.get("embed_model")
                     st.session_state['search_response'] = response
-
+                    st.success("Search completed successfully.")
+                else:
+                    st.error(response.get('message', 'Search failed.'))
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"An error occurred during search: {e}")
 
-        if 'search_response' in st.session_state and st.session_state.search_response:
+        col1, col2 = st.columns(2)
+        with col1:
+            response_debug_toggle = st.checkbox(
+                "Display JSON output",
+                value=True,
+                help="Display the latest successful search JSON output"
+            )
+        with col2:
+            display_search_result_toggle = st.checkbox(
+                "Visualise result",
+                value=True,
+                help="Display the latest successful search result"
+            )
+
+        if st.session_state.get('search_response'):
             if response_debug_toggle:
-                st.json(st.session_state.search_response)
+                st.json(st.session_state['search_response'])
 
             if display_search_result_toggle:
-                display_search_result(
-                    st.session_state.search_response['message'])
+                display_search_result(st.session_state['search_response'].get('message', []))
 
 
 if __name__ == "__main__":

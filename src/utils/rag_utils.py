@@ -20,6 +20,15 @@ MULTIMODAL_WEIGHT = 0.4
 DOCUMENT_WEIGHT = 0.2
 _concat_tables_args = {"promote_options": "default"}
 API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
+SEARCH_ALLOWED_TYPES =  [
+    "application/pdf", "image/png", "image/jpeg", "image/gif",
+    # "video/mp4", "video/x-msvideo"
+]
+UPLOAD_ALLOWED_TYPES = [
+    "application/pdf", "image/png", "image/jpeg", "image/gif",
+    # "video/mp4", "video/x-msvideo"
+]
+
 
 def search_rag(files_upload: List, query: str, embed_model: str) -> dict:
     """
@@ -402,35 +411,23 @@ async def rag_search(rag_manager: RAGManager, files: List[UploadFile], query: st
         """
         try:
             switch_model(rag_manager, embedding_model)
-
             file_content = None
-
             if not files:
                 result = rag_manager.search(text=query, image=file_content)
                 return result
-
+            
             result = []
             for file in files:
-                # get the file bytes
-                file_content = await file.read()
-                # Validate file type
-                allowed_types = [
-                    "application/pdf", "image/png", "image/jpeg",
-                    "video/mp4", "image/gif", "video/x-msvideo"
-                ]
-                if file.content_type not in allowed_types:
+                if file.content_type not in SEARCH_ALLOWED_TYPES:
                     raise ValueError("Unsupported file type.")
-
-                elif file.content_type in ['video/mp4', 'video/x-msvideo']:
-                    result.extend(rag_manager.search_video(text=query, video=file_content)['message'])
-                        
+                file_content = await file.read()
+                if file.content_type in ['video/mp4', 'video/x-msvideo']:
+                    result.extend(rag_manager.search_video(text=query, video=file_content)['message'])   
                 else:
-                    # search
                     result.extend(rag_manager.search(text=query, image=file_content)['message'])
 
             result = rag_manager.deduplicate(result).to_pylist()
-            return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'message': result}            
-
+            return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'message': result}
         except Exception as e:
             raise Exception(f"Failed to search: {str(e)}")
 
