@@ -160,6 +160,7 @@ def main() -> None:
     )
 
     if decode_type == "Beam Search":
+        STREAMING = False
         st.session_state["gen_params"] = {}
         st.session_state["gen_params"]["num_beams"] = st.sidebar.selectbox(
             "Number of beams",
@@ -168,11 +169,8 @@ def main() -> None:
             help="Higher values consider more alternative sequences but increase computation time.",
         )
 
-        # A little cheating since streaming and beam search are currently incompatible
-        if STREAMING:
-            st.session_state["gen_params"]["num_beams"] = 1
-
     else: # Sampling
+        STREAMING = True
         st.session_state["gen_params"] = {}
         col1, col2 = st.sidebar.columns(2)
         
@@ -236,29 +234,30 @@ def main() -> None:
         elif st.session_state.get("video_uploader"):
             st.session_state["uploaded_files"].append(st.session_state.get("video_uploader"))
         
-        response = request_model_response(
-            st.session_state["session_type"],
-            st.session_state["uploaded_files"],
-            st.session_state["formatted_messages"],
-            st.session_state["gen_params"],
-            prompt,
-            streaming=STREAMING
-        )
+        with st.chat_message("assistant"):
 
-        if STREAMING:
-            with st.chat_message("assistant"):
+            # Request model response
+            response = request_model_response(
+                st.session_state["session_type"],
+                st.session_state["uploaded_files"],
+                st.session_state["formatted_messages"],
+                st.session_state["gen_params"],
+                prompt,
+                streaming=STREAMING
+            )
+            llm_response = ""
+
+            if STREAMING:
                 try:
                     llm_response = st.write_stream(response)
                 except Exception as e:
                     st.error(f"Error during streaming: {str(e)}")
-                    llm_response = None
-        else:
-            llm_response = response.get("response", "Error: No response from backend.")
-            with st.chat_message("assistant"):
+            else:
+                llm_response = response.get("response", "Error: No response from backend.")
                 st.write(llm_response)
-
-        st.session_state["messages"].append({"role": "assistant", "content": llm_response})
-        st.session_state["formatted_messages"].append({"role": "assistant", "content": llm_response})
+            
+            st.session_state["messages"].append({"role": "assistant", "content": llm_response})
+            st.session_state["formatted_messages"].append({"role": "assistant", "content": llm_response})
         
 if __name__ == "__main__":
     main()

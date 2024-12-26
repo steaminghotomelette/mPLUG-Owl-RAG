@@ -22,7 +22,7 @@ load_dotenv()
 MPLUG_MODEL_PATH = os.getenv("MPLUG_MODEL_PATH")
 
 # Mplug model manager
-mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH, attn_implementation="sdpa")
+mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH)
 
 # --------------------------------------------
 # Post Endpoints
