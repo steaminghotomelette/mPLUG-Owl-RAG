@@ -5,7 +5,7 @@ import tempfile
 from typing import List
 import numpy as np
 import pyarrow as pa
-from lancedb.rerankers import RRFReranker
+from lancedb.rerankers import RRFReranker, ColbertReranker
 from requests import post, exceptions
 from db.connection import DBConnection
 from db.utils import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTION_NAME
@@ -15,9 +15,19 @@ from utils.mplug_utils import MplugOwl3ModelManager
 from fastapi import UploadFile
 from langchain.prompts import PromptTemplate
 
-USER_WEIGHT = 0.4
-MULTIMODAL_WEIGHT = 0.4
-DOCUMENT_WEIGHT = 0.2
+
+WEIGHT = {
+    "USER": 0.4,
+    "MULTIMODAL": 0.4,
+    "DOCUMENT": 0.2
+}
+
+THRESHOLD = {
+    "USER": 0.7,
+    "MULTIMODAL": 0.7,
+    "DOCUMENT": 0.7
+}
+
 _concat_tables_args = {"promote_options": "default"}
 API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
 SEARCH_ALLOWED_TYPES =  [
@@ -62,7 +72,8 @@ class RAGManager():
     def __init__(self):
         self.embedding_model_manager = EmbeddingModelManager()
         self.db = DBConnection()
-        self.reranker = RRFReranker()
+        # self.reranker = RRFReranker()
+        self.reranker = ColbertReranker()
         self.image_text_table = None
         self.doc_table = None
         self.user_table = None
@@ -112,6 +123,31 @@ class RAGManager():
 
         self.load_collections()
         return {"success": dropped > 0, "collections_dropped": dropped}
+    
+    def _generate_embeddings(self, text: str, image: bytes | None):
+        text_embedding = self.embedding_model_manager.embed_text(text)
+        image_embedding, image_raw = None, None
+        if image:
+            image_embedding, image_raw = self.embedding_model_manager.embed_image(image)
+        return text_embedding, image_embedding, image_raw
+    
+    def _hybrid_search(self, table, text: str, vector_column_name: str, embedding: list, threshold: float):
+        if not text:
+            text = " "
+
+        temp = table.search(query_type="hybrid", 
+                         vector_column_name=vector_column_name, 
+                         fts_columns="text")\
+                 .text(text)\
+                 .vector(embedding)\
+                 .limit(3)
+        
+        if len(temp.to_list()) == 0: 
+            return pa.Table.from_pydict({})
+                 
+        results = temp\
+                 .rerank(self.reranker)
+        return results.to_arrow().filter(pa.compute.field('_relevance_score') >= threshold)
 
     def search_multimodal(self, text: str, image: bytes | None) -> LanceHybridQueryBuilder:
         """
@@ -127,26 +163,14 @@ class RAGManager():
             LanceHybridQueryBuilder: result of search
         """
         try:
-            if image:
-                search_img_embedding, search_img_raw = self.embedding_model_manager.embed_image(
-                    image)
-                res = self.image_text_table.search(query_type="hybrid",
-                                                   vector_column_name="image_embedding",
-                                                   fts_columns="text")\
-                    .vector(search_img_embedding)\
-                    .text(text)\
-                    .limit(3)\
-                    .rerank(self.reranker)
-            else:
-                text_embedding = self.embedding_model_manager.embed_text(text)
-                res = self.image_text_table.search(query_type="hybrid",
-                                                   vector_column_name="text_embedding",
-                                                   fts_columns="text")\
-                    .vector(text_embedding)\
-                    .text(text)\
-                    .limit(3)\
-                    .rerank(self.reranker)
-            return res
+            text_embedding, image_embedding, _ = self._generate_embeddings(text, image)
+            if image_embedding:
+                return self._hybrid_search(
+                    self.image_text_table, text, "image_embedding", image_embedding, THRESHOLD['MULTIMODAL']
+                )
+            return self._hybrid_search(
+                self.image_text_table, text, "text_embedding", text_embedding, THRESHOLD['MULTIMODAL']
+            )
         except Exception as e:
             raise Exception(f"Failed searching multimodal: {e}")
 
@@ -162,16 +186,10 @@ class RAGManager():
             LanceHybridQueryBuilder: result of search
         """
         try:
-            search_txt_embedding = self.embedding_model_manager.embed_text(
-                text)
-            res = self.doc_table.search(query_type="hybrid",
-                                        vector_column_name="text_embedding",
-                                        fts_columns="text")\
-                .vector(search_txt_embedding)\
-                .text(text)\
-                .limit(3)\
-                .rerank(self.reranker)
-            return res
+            text_embedding = self.embedding_model_manager.embed_text(text)
+            return self._hybrid_search(
+                self.doc_table, text, "text_embedding", text_embedding, THRESHOLD['DOCUMENT']
+            )
         except Exception as e:
             raise Exception(f"Failed searching document: {e}")
 
@@ -193,42 +211,18 @@ class RAGManager():
             pa.Table: PyArrow table of search result.
         """
         try:
-            # vector search with text
-            search_txt_embedding = self.embedding_model_manager.embed_text(
-                text)
-            txt_search = self.user_table.search(search_txt_embedding,
-                                                vector_column_name="text_embedding")\
-                .limit(3)\
-                .with_row_id(True)
-
-            if image:
-                search_img_embedding, search_img_raw = self.embedding_model_manager.embed_image(
-                    image)
-
-                # vector search with image
-                img_search = self.user_table.search(search_img_embedding,
-                                                    vector_column_name="image_embedding")\
-                    .limit(3)\
-                    .with_row_id(True)
-
-                # rerank multivector for hybrid search of text, image_embedding, text_embedding
-                user_res = self.reranker.rerank_multivector(
-                    [img_search, txt_search], text)
-                return user_res
-            else:
-                fts_txt = self.user_table.search(text, query_type="fts")\
-                    .limit(3)\
-                    .with_row_id(True)\
-                    .to_arrow()
-                user_res = self.reranker.rerank_hybrid(query=text,
-                                                       vector_results=txt_search.to_arrow(),
-                                                       fts_results=fts_txt)
-
-            return user_res
+            text_embedding, image_embedding, _ = self._generate_embeddings(text, image)
+            if image_embedding:
+                return self._hybrid_search(
+                    self.user_table, text, "image_embedding", image_embedding, THRESHOLD['USER']
+                )
+            return self._hybrid_search(
+                self.user_table, text, "text_embedding", text_embedding, THRESHOLD['USER']
+            )
         except Exception as e:
             raise Exception(f"Failed searching user: {e}")
 
-    def weighted_table(self, table: pa.Table, weight: float) -> pa.Table:
+    def _weight_table(self, table: pa.Table, weight: float) -> pa.Table:
         """
         Weighs relevance score in table according to weight given.
         Weight is expected to be in float format, i.e. 0.6 for 60%
@@ -245,16 +239,11 @@ class RAGManager():
                 table = table.to_arrow()
 
             if "_rowid" not in table.column_names:
-                table = table.append_column(
-                    "_rowid", pa.array(range(len(table)), type=pa.uint64())
-                )
+                table = table.append_column("_rowid", pa.array(range(len(table)), type=pa.uint64()))
 
-            table = table.append_column(
-                "_weighted_relevance_score",
-                pa.array(
-                    [weight * score for score in table['_relevance_score'].to_pylist()]
-                )
-            )
+            if "_relevance_score" in table.column_names:
+                weighted_scores = [weight * score for score in table["_relevance_score"].to_pylist()]
+                table = table.append_column("_weighted_relevance_score", pa.array(weighted_scores))
             return table
         except Exception as e:
             raise Exception(f"Failed creating weighted table: {e}")
@@ -262,9 +251,9 @@ class RAGManager():
     def combine_results(self, user: pa.Table,
                         multimodal: LanceHybridQueryBuilder | pa.Table,
                         docs: LanceHybridQueryBuilder | pa.Table,
-                        w_user: float = USER_WEIGHT,
-                        w_mm: float = MULTIMODAL_WEIGHT,
-                        w_doc: float = DOCUMENT_WEIGHT) -> pa.Table:
+                        w_user: float = WEIGHT['USER'],
+                        w_mm: float = WEIGHT['MULTIMODAL'],
+                        w_doc: float = WEIGHT['DOCUMENT']) -> pa.Table:
         """
         Combine the results of searching from user table, document table and 
         multimodal table.
@@ -283,9 +272,9 @@ class RAGManager():
             pa.Table: PyArrow table of sorted combined results.
         """
         try:
-            u = self.weighted_table(user, w_user)
-            m = self.weighted_table(multimodal, w_mm)
-            d = self.weighted_table(docs, w_doc)
+            u = self._weight_table(user, w_user)
+            m = self._weight_table(multimodal, w_mm)
+            d = self._weight_table(docs, w_doc)
             res = pa.concat_tables([u, m, d], **_concat_tables_args)
             res = res.sort_by(
                 [("_weighted_relevance_score", "descending")]
@@ -302,16 +291,17 @@ class RAGManager():
             if isinstance(table, list):
                 table = pa.Table.from_pylist(table)
 
-            row_id = np.array(table.column("id"))
-            row_text = np.array(table.column("text"))
+            if 'id' in table.column_names and 'text' in table.column_names:
+                row_id = np.array(table.column("id"))
+                row_text = np.array(table.column("text"))
 
-            # deduplicate
-            mask = np.full((table.shape[0]), False)
-            combined = np.array(list(zip(row_id.tolist(), row_text.tolist())))
-            _, mask_indices = np.unique(combined, axis=0,return_index=True)
-            deduped_table = table.take(mask_indices)
+                # deduplicate
+                mask = np.full((table.shape[0]), False)
+                combined = np.array(list(zip(row_id.tolist(), row_text.tolist())))
+                _, mask_indices = np.unique(combined, axis=0,return_index=True)
+                return table.take(mask_indices)
             
-            return deduped_table
+            return table
         except Exception as e:
             raise Exception(f"Failed deduplication: {table.schema} {e}")
     
@@ -376,8 +366,8 @@ class RAGManager():
                     file_content = image_bytes
                     # Search for each frame
                     u = pa.concat_tables([u, self.search_user(text, file_content)], **_concat_tables_args)
-                    m = pa.concat_tables([m, self.search_multimodal(text, file_content).to_arrow()], **_concat_tables_args)
-                    d = pa.concat_tables([d, self.search_documents(text).to_arrow()], **_concat_tables_args)                    
+                    m = pa.concat_tables([m, self.search_multimodal(text, file_content)], **_concat_tables_args)
+                    d = pa.concat_tables([d, self.search_documents(text)], **_concat_tables_args)                    
 
                 # combine all responses
                 u = self.deduplicate(u)
