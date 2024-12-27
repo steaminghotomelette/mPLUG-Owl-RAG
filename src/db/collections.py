@@ -157,7 +157,7 @@ def insert_vqa(table: lancedb.db.Table,
         raise Exception(f"Table must have 'text_embedding' field")
 
     data = load_dataset("flaviagiammarino/vqa-rad")
-    data = data['train'][:5]
+    data = data['train']
     batch_data = []
 
     for i, (image, q, a) in enumerate(zip(data['image'], data['question'], data['answer'])):
