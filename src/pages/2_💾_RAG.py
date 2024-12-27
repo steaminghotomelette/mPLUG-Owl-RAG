@@ -64,15 +64,19 @@ def display_search_result(result: List[Dict]):
         None
 
     """
-    df = pd.DataFrame(result).drop(columns=["id", "_rowid", "text_embedding", "image_embedding"], errors='ignore')
-    df['image_data'] = df['image_data'].apply(lambda x: f'data:image/jpeg;base64,{x}')
-    df.rename(columns={
-        'text': 'Text',
-        'metadata': 'Metadata',
-        '_relevance_score': 'Initial Relevance Score',
-        '_weighted_relevance_score': 'Weighted Relevance Score'
-    }, inplace=True)
-    st.dataframe(df, column_config={"image_data": st.column_config.ImageColumn("Relevant Image")})
+    if len(result) > 0:
+        df = pd.DataFrame(result).drop(columns=["id", "_rowid", "text_embedding", "image_embedding"], errors='ignore')
+        if 'image_data' in df.columns:
+            df['image_data'] = df['image_data'].apply(lambda x: f'data:image/jpeg;base64,{x}')
+            df.rename(columns={
+                'text': 'Text',
+                'metadata': 'Metadata',
+                '_relevance_score': 'Initial Relevance Score',
+                '_weighted_relevance_score': 'Weighted Relevance Score'
+            }, inplace=True)
+            st.dataframe(df, column_config={"image_data": st.column_config.ImageColumn("Relevant Image")})
+    else:
+        st.warning("No relevant context.")
 
 
 def preview_file(file: UploadFile):
