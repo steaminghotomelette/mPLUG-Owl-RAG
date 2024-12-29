@@ -5,6 +5,7 @@ __pycache__
 *.so
 scripts/data_prepare/data
 .env
+datasets*/
 
 #Megatron
 megatron/fused_kernels/build/
