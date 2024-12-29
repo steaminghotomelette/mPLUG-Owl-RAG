@@ -20,9 +20,10 @@ router = APIRouter(
 # --------------------------------------------
 load_dotenv()
 MPLUG_MODEL_PATH = os.getenv("MPLUG_MODEL_PATH")
+ATTN_IMPLEMENTATION = os.getenv("ATTN_IMPLEMENTATION")
 
 # Mplug model manager
-mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH)
+mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH, ATTN_IMPLEMENTATION)
 
 # --------------------------------------------
 # Post Endpoints
