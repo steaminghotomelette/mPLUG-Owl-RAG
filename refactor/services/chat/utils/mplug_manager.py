@@ -1,7 +1,7 @@
 import torch
 from PIL import Image
 from decord import VideoReader, cpu
-from modelscope import AutoModel, AutoTokenizer, AutoProcessor
+from modelscope import AutoModel, AutoTokenizer
 from fastapi import UploadFile
 from io import BytesIO
 from typing import List, Dict, Union, Any
