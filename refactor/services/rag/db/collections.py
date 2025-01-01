@@ -3,6 +3,7 @@ import db.schemas as schemas
 from io import BytesIO
 from db.constants import MM_COLLECTION_NAME, USER_COLLECTION_NAME, DOC_COLLECTION_NAME, BATCH_SIZE
 from datasets import load_dataset
+from utils.rag_utils import Domain
 from utils.embed_utils import EmbeddingModelManager
 
 # --------------------------------------------
@@ -41,9 +42,51 @@ def create_text_collection(
     return table
 
 # --------------------------------------------
+# Specific Collection Creation
+# --------------------------------------------
+def create_multimodal_table(
+        client: lancedb.db.DBConnection,
+        embedding_model: EmbeddingModelManager,
+        domain: Domain
+) -> lancedb.db.Table:
+    table = create_image_text_collection(
+        client,
+        f"{MM_COLLECTION_NAME}_{embedding_model.model_type.name}_{domain.value}",
+        embedding_model.text_dimension,
+        embedding_model.image_dimension
+    )
+    return table
+
+def create_doc_table(
+        client: lancedb.db.DBConnection,
+        embedding_model: EmbeddingModelManager,
+        domain: Domain
+) -> lancedb.db.Table:
+    table = create_text_collection(
+        client,
+        f"{DOC_COLLECTION_NAME}_{embedding_model.model_type.name}_{domain.value}",
+        embedding_model.text_dimension
+    )
+    return table
+
+def create_user_table(
+        client: lancedb.db.DBConnection,
+        embedding_model: EmbeddingModelManager,
+        domain: Domain
+) -> lancedb.db.Table:
+    table = create_image_text_collection(
+        client,
+        f"{USER_COLLECTION_NAME}_{embedding_model.model_type.name}_{domain.value}",
+        embedding_model.text_dimension,
+        embedding_model.image_dimension
+    )
+    return table
+
+
+# --------------------------------------------
 # Populate Collection
 # --------------------------------------------
-def insert_vqa(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+def insert_vqa_rad(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
 
     # Validate data
     if "image_embedding" not in table.schema.names:
@@ -89,43 +132,3 @@ def insert_vqa(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) 
             table.add(batch_data)
         except Exception as e:
             raise Exception(f"Failed inserting vqa dataset: {e}")
-
-# --------------------------------------------
-# Specific Collection Creation
-# --------------------------------------------
-def create_multimodal_table(
-        client: lancedb.db.DBConnection,
-        embedding_model: EmbeddingModelManager
-) -> lancedb.db.Table:
-    table = create_image_text_collection(
-        client,
-        f"{MM_COLLECTION_NAME}_{embedding_model.model_type.name}",
-        embedding_model.text_dimension,
-        embedding_model.image_dimension
-    )
-    insert_vqa(table, embedding_model)
-    return table
-
-def create_doc_table(
-        client: lancedb.db.DBConnection,
-        embedding_model: EmbeddingModelManager
-) -> lancedb.db.Table:
-    table = create_text_collection(
-        client,
-        f"{DOC_COLLECTION_NAME}_{embedding_model.model_type.name}",
-        embedding_model.text_dimension
-    )
-    # TODO: Populate table with data
-    return table
-
-def create_user_table(
-        client: lancedb.db.DBConnection,
-        embedding_model: EmbeddingModelManager
-) -> lancedb.db.Table:
-    table = create_image_text_collection(
-        client,
-        f"{USER_COLLECTION_NAME}_{embedding_model.model_type.name}",
-        embedding_model.text_dimension,
-        embedding_model.image_dimension
-    )
-    return table
