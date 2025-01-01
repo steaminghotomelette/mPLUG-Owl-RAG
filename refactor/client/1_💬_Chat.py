@@ -120,7 +120,9 @@ def main() -> None:
         "is_image_uploader_enabled": True,
         "is_video_uploader_enabled": True,
         "session_type": None,
-        "gen_params": {}
+        "gen_params": {},
+        "domain": "Medical",
+        "embedding_model": "BLIP"
     }.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
@@ -203,12 +205,17 @@ def main() -> None:
                 help="Limits the number of tokens considered for each step of text generation.",
             )
 
+    # Domain selection
+    domain_opt = ["Medical", "Forensics"]
     domain = st.sidebar.selectbox(
         "Select domain specialization",
-        options=["Medical", "Forensics"],
+        options=domain_opt,
         help="Choose the domain to tailor the LLM's responses.",
+        index=domain_opt.index(st.session_state.domain)
     )
-
+    # Manual saving of value for widget clean-up interruption
+    if domain: st.session_state.domain = domain
+    
     # --------------------------------------------
     # Chat Window
     # --------------------------------------------

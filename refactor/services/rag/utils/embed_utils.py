@@ -1,19 +1,10 @@
 from transformers import CLIPProcessor, CLIPModel, Blip2Processor, Blip2Model
 from io import BytesIO
 from PIL import Image
-from enum import Enum
 from typing import Any, Union, Tuple, List
+from utils.rag_utils import EmbeddingModel
+import torch
 
-# --------------------------------------------
-# Enum
-# --------------------------------------------
-class EmbeddingModel(Enum):
-    """
-    Enum class for embedding models supported
-    """
-    BLIP    = "BLIP"
-    CLIP    = "CLIP"
-    DEFAULT =  CLIP
 
 class EmbeddingModelManager:
 
@@ -29,29 +20,32 @@ class EmbeddingModelManager:
         self.output_hiddens    = None
         self.image_dimension   = None
         self.text_dimension    = None
+        self.device            = "cpu"
         self.init_model(model_type)
     
     def init_model(self, model_type: EmbeddingModel) -> None:
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         try:
             match model_type:
 
                 case EmbeddingModel.BLIP:
-                    self.model             = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b", load_in_8bit=True)
-                    self.processor         = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
-                    self.get_img_embedding = lambda x: x.pooler_output
-                    self.get_txt_embedding = lambda x: x.hidden_states[-1].mean(dim=1)
-                    self.output_hiddens    = True
-                    self.image_dimension   = 1408
-                    self.text_dimension    = 2560
+                    
+                    self.model                  = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b", load_in_8bit=True, device_map=self.device)
+                    self.processor              = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+                    self.get_image_embedding    = lambda x: x.pooler_output
+                    self.get_text_embedding     = lambda x: x.hidden_states[-1].mean(dim=1)
+                    self.output_hidden_states   = True
+                    self.image_dimension        = 1408
+                    self.text_dimension         = 2560
                 
                 case EmbeddingModel.CLIP:
-                    self.model             = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", load_in_8bit=True)
-                    self.processor         = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-                    self.get_img_embedding = lambda x: x
-                    self.get_txt_embedding = lambda x: x[0]
-                    self.output_hiddens    = False
-                    self.image_dimension   = 512
-                    self.text_dimension    = 512
+                    self.model                  = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", load_in_8bit=True, device_map=self.device)
+                    self.processor              = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+                    self.get_image_embedding    = lambda x: x
+                    self.get_text_embedding     = lambda x: x[0]
+                    self.output_hidden_states   = False
+                    self.image_dimension        = 512
+                    self.text_dimension         = 512
                 
                 case _:
                     self.model_type = EmbeddingModel.DEFAULT
@@ -73,7 +67,7 @@ class EmbeddingModelManager:
             raw_image_bytes = raw_image.getvalue()
 
             # Preprocess the image and generate embeddings
-            inputs = self.processor(images=image, return_tensors="pt", padding=True, truncation=True)
+            inputs = self.processor(images=image, return_tensors="pt", padding=True, truncation=True).to(device=self.device)
             embeddings = self.get_image_embedding(self.model.get_image_features(**inputs)).cpu().detach().numpy()
 
             # Return the flattened embeddings and raw image data
@@ -84,7 +78,7 @@ class EmbeddingModelManager:
             raise Exception(f"Invalid image format: {e}")
     
     def embed_text(self, text: str) -> List[Any]:
-        inputs = self.processor(text=[text], return_tensors="pt", padding=True)
+        inputs = self.processor(text=[text], return_tensors="pt", padding=True).to(device=self.device)
         embeddings = self.get_text_embedding(self.model.get_text_features(**inputs, output_hidden_states=self.output_hidden_states)).cpu().detach().numpy()
         text_embeddings_list = embeddings.flatten().tolist()
         return text_embeddings_list
