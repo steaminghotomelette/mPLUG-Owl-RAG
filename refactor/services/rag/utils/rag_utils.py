@@ -9,9 +9,9 @@ WEIGHT = {
 }
 
 THRESHOLD = {
-    "USER": 0.7,
-    "MULTIMODAL": 0.7,
-    "DOCUMENT": 0.7
+    "USER": 0.5,
+    "MULTIMODAL": 0.5,
+    "DOCUMENT": 0.5
 }
 
 _concat_tables_args = {"promote_options": "default"}

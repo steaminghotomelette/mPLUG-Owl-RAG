@@ -1,4 +1,5 @@
 import lancedb
+from tqdm import tqdm
 import db.schemas as schemas
 from io import BytesIO
 from db.constants import MM_COLLECTION_NAME, USER_COLLECTION_NAME, DOC_COLLECTION_NAME, BATCH_SIZE
@@ -55,6 +56,13 @@ def create_multimodal_table(
         embedding_model.text_dimension,
         embedding_model.image_dimension
     )
+    
+    match domain:
+        case Domain.MEDICAL:
+            insert_med_mm(table, embedding_model)
+        case Domain.FORENSICS:
+            insert_for_mm(table, embedding_model)
+    
     return table
 
 def create_doc_table(
@@ -67,6 +75,13 @@ def create_doc_table(
         f"{DOC_COLLECTION_NAME}_{embedding_model.model_type.name}_{domain.value}",
         embedding_model.text_dimension
     )
+
+    match domain:
+        case Domain.MEDICAL:
+            insert_med_docs(table, embedding_model)
+        case Domain.FORENSICS:
+            insert_for_docs(table, embedding_model)
+
     return table
 
 def create_user_table(
@@ -84,51 +99,23 @@ def create_user_table(
 
 
 # --------------------------------------------
-# Populate Collection
+# Populate Medical Collection
 # --------------------------------------------
-def insert_vqa_rad(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+    pass
 
-    # Validate data
-    if "image_embedding" not in table.schema.names:
-        raise Exception("Table must have 'image_embedding' field")
-    if "text_embedding" not in table.schema.names:
-        raise Exception("Table must have 'text_embedding' field")
-    
-    # Load data
-    data = load_dataset("flaviagiammarino/vqa-rad")
-    data = data["train"][:5]
-    batch_data = []
 
-    # Prepare data batch
-    for i, (image, question, answer) in enumerate(zip(data["image"], data["question"], data["answer"])):
-        text = f"question: {question}, answer: {answer}"
-        bytes_io = BytesIO()
-        image.save(bytes_io, format="JPEG")
-        image_bytes = bytes_io.getvalue()
-        image_embedding, raw_image = embedding_model.embed_image(image_bytes)
-        text_embedding = embedding_model.embed_text(text)
+def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+   pass
 
-        batch_data.append(
-            {
-                "id": i + 1,
-                "text": text,
-                "text_embedding": text_embedding,
-                "image_embedding": image_embedding,
-                "image_data": raw_image,
-                "metadata": None
-            }
-        )
 
-        if len(batch_data) % BATCH_SIZE == 0:
-            try:
-                table.add(batch_data)
-                batch_data = []
-            except Exception as e:
-                raise Exception(f"Failed inserting vqa dataset: {e}")
-    
-    # Handle leftovers
-    if len(batch_data) != 0:
-        try:
-            table.add(batch_data)
-        except Exception as e:
-            raise Exception(f"Failed inserting vqa dataset: {e}")
+
+# --------------------------------------------
+# Populate Forensics Collection
+# --------------------------------------------
+def insert_for_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+   pass
+        
+
+def insert_for_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
+    pass

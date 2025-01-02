@@ -5,7 +5,6 @@ import pyarrow as pa
 from lancedb.rerankers import ColbertReranker, CrossEncoderReranker
 from db.connection import DBConnection
 from db.constants import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTION_NAME
-from utils import chunker
 from utils.rag_utils import Domain, deduplicate, THRESHOLD, combine_results
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from fastapi import UploadFile
@@ -19,7 +18,7 @@ class RAGManager():
     def __init__(self):
         self.embedding_model_manager = EmbeddingModelManager()
         self.db = DBConnection()
-        self.reranker = CrossEncoderReranker()
+        self.reranker = ColbertReranker()
         self.image_text_table = None
         self.doc_table = None
         self.user_table = None
