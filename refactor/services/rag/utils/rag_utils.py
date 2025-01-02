@@ -130,7 +130,7 @@ def format_query(query: str, tag: str) -> str:
 
     Args:
         query (str): The query string.
-        type (str): The type of search (e.g., "text", "image").
+        type (str): The type of search (image or video)
 
     Returns:
         str: The formatted query string.

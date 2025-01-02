@@ -41,7 +41,7 @@ def create_system_prompt(domain: str) -> str:
 
 def create_user_prompt(user_query: str, retrieved_chunks: str) -> str:
     """
-    Constructs a system prompt using the query, and retrieved chunks.
+    Constructs a user prompt using the query and retrieved chunks.
     """
     formatted_context = format_context(retrieved_chunks)
     rag_prompt = PromptTemplate(
