@@ -50,14 +50,14 @@ def process_row(row: pd.Series, output_dir: str, index: int, offset: str) -> Dic
         }
         answer = option_map.get(safe_strip(row['correct_option']), "")
 
-    query_string = f"<|image|>{safe_strip(row['question'])}"
+    query_string = f"<|image|><|image|>{safe_strip(row['question'])}"
     for key in option_map.keys():
         query_string += f'\n{key}: {safe_strip(row[key])}'
         
     return {
         "query": query_string,
         "response": f"{row['correct_option']}: {answer}",
-        "images": [f"images/image_{index}_{offset}.png"]
+        "images": [f"images/image_{index}_{offset}.png", f"images/image_{index}_{offset}.png"]
     }
 
 def convert_tsv_to_json(input_path: str, output_dir: str, offset: str) -> None:

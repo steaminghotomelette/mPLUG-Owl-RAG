@@ -29,13 +29,13 @@ all_data = []
 
 # List of input JSON file paths
 file_paths = [
-    'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/BioASQ/bio_asq_train_data.json',
+    # 'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/BioASQ/bio_asq_train_data.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/iu_xray/iu_xray_train_data.json',
-    'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/MMLU-Med/mmlu_med_train_data.json',
+    # 'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/MMLU-Med/mmlu_med_train_data.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_1.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_2.json',
-    'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_3.json',
-    'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_4.json',
+    # 'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_3.json',
+    # 'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/PMC-VQA/pmc_vqa_4.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/V/brazil/output.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/V/israel/output.json',
     'C:/Users/ILLEGEAR/personal-projects/mPLUG-Owl-RAG/refactor/training/scripts/V/japan/output.json',
