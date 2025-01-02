@@ -90,7 +90,7 @@ async def image_chat_mplug(
 ) -> Union[Dict[str, str], StreamingResponse]:
     
     formatted_query = format_query(query, "video")
-    context = await rag.search_image(files, query, embedding_model, domain)
+    context = await rag.search_image(files, formatted_query, embedding_model, domain)
     text_data = [document["text"] for document in context["message"]]
   
     # Parse message history and generation params
