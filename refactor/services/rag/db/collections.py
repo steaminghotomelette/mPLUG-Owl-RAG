@@ -1,9 +1,6 @@
 import lancedb
-from tqdm import tqdm
 import db.schemas as schemas
-from io import BytesIO
 from db.constants import MM_COLLECTION_NAME, USER_COLLECTION_NAME, DOC_COLLECTION_NAME, BATCH_SIZE
-from datasets import load_dataset
 from utils.rag_utils import Domain
 from utils.embed_utils import EmbeddingModelManager
 
@@ -97,7 +94,6 @@ def create_user_table(
     )
     return table
 
-
 # --------------------------------------------
 # Populate Medical Collection
 # --------------------------------------------
@@ -107,8 +103,6 @@ def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManage
 
 def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
    pass
-
-
 
 # --------------------------------------------
 # Populate Forensics Collection

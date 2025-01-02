@@ -76,7 +76,6 @@ async def search_image(
     """
     return await rag.search_image(files, query, embedding_model, domain)
 
-
 @router.post("/search_video")
 async def search_video(
     files: List[UploadFile] = File(None),

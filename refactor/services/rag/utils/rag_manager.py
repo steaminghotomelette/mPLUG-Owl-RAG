@@ -126,7 +126,6 @@ class RAGManager():
 
         except Exception as e:
             raise Exception(f"Failed to upload to user collection: {e}")
-    
 
     # --------------------------------------------
     # Search utilities
@@ -276,7 +275,6 @@ class RAGManager():
             return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'content': result}
         except Exception as e:
             raise Exception(f"Failed to search with images: {e}")
-
 
     async def search_video(self, files: List[UploadFile], query: str, embedding_model: str, domain: str):
         try:

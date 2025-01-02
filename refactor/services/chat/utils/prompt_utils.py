@@ -59,9 +59,24 @@ def create_user_prompt(user_query: str, retrieved_chunks: str) -> str:
     # Fill in the template
     return rag_prompt.format(user_query=user_query, retrieved_context=formatted_context)
 
-
 def format_context(chunks):
     """
     Formats a list of text chunks into a single string suitable for insertion into the prompt.
     """
     return "\n\n".join(f"- {chunk}" for chunk in chunks)
+
+# DEPRECATED
+# def format_query(query: str, tag: str) -> str:
+#     """Formats the query based on the type of search.
+
+#     Args:
+#         query (str): The query string.
+#         type (str): The type of search (e.g., "text", "image").
+
+#     Returns:
+#         str: The formatted query string.
+#     """
+#     if tag in ["image", "video"]:
+#         return f"<|{tag}|><|{tag}|>{query}"
+#     else:
+#         raise ValueError(f"Invalid search type: {type}")
