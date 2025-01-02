@@ -9,7 +9,8 @@ from utils import chunker
 from utils.rag_utils import Domain, deduplicate, THRESHOLD, combine_results
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from fastapi import UploadFile
-
+from utils.upload_utils import chunk_document, contextualize_chunks
+import os
 
 class RAGManager():
     # --------------------------------------------
@@ -106,10 +107,8 @@ class RAGManager():
                 else:
                     # Chunk and summarize text from PDF
                     try:
-                        # TODO chunker things
-                        chunk_text, chunk_metadata = chunker.split_document(file_content, max_size=200, chunk_overlap=20)
-                        # text_content = summarizer.contextualize_chunks(chunk_text, os.getenv('GEMINI_API_KEY'))
-                        text_content = chunk_text
+                        chunk_text, chunk_metadata = chunk_document(file_content, max_size=200, chunk_overlap=20)
+                        text_content = contextualize_chunks(chunk_text, os.getenv('GEMINI_API_KEY'))
                     except Exception as e:
                         raise Exception(f"Failed to extract PDF text: {e}")
 

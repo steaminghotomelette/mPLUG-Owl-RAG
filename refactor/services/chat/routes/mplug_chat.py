@@ -6,6 +6,9 @@ from fastapi.responses import StreamingResponse
 from utils.mplug_manager import MplugOwl3ModelManager
 from utils.prompt_utils import filter_stream
 from typing import List, Dict, Union
+from rag.routes.rag import rag
+from utils.rag_utils import EmbeddingModel, format_query
+from utils.prompt_utils import create_system_prompt, create_user_prompt
 
 # --------------------------------------------
 # Router Initialization
@@ -33,17 +36,32 @@ async def image_chat_mplug(
     files: List[UploadFile] = File(...),
     messages: str = Form(...),
     gen_params: str = Form(None),
+    domain: str = Form(...),
+    embedding_model: str = Form(...),
     query: str = Form(...),
     streaming: bool = Form(False)
 ) -> Union[Dict[str, str], StreamingResponse]:
     
-    # TODO rag search here
+    formatted_query = format_query(query, "image")
+    context = await rag.search_image(files, formatted_query, embedding_model, domain)
+    text_data = [document["text"] for document in context["message"]]
 
     # Parse message history and generation params
     parsed_messages = json.loads(messages)
-    parsed_messages.append({"role": "assistant", "content": ""})
     generation_params = json.loads(gen_params)
     sampling = not "num_beams" in gen_params
+    
+    # Create system prompt only for first interaction
+    if len(parsed_messages) == 0 or parsed_messages[0]["role"] != "system":
+        system_prompt = create_system_prompt(domain)
+        parsed_messages.insert(0, {"role": "system", "content": system_prompt})
+
+    # Create user query prompt for the current interaction
+    user_query = parsed_messages.pop()["content"]
+    rag_prompt = create_user_prompt(user_query, text_data)
+
+    parsed_messages.append({"role": "user", "content": rag_prompt})
+    parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
     response = mplug_manager.respond(
@@ -65,17 +83,32 @@ async def image_chat_mplug(
     files: List[UploadFile] = File(...),
     messages: str = Form(...),
     gen_params: str = Form(None),
+    domain: str = Form(...),
+    embedding_model: str = Form(...),
     query: str = Form(...),
     streaming: bool = Form(False)
 ) -> Union[Dict[str, str], StreamingResponse]:
     
-    # TODO rag search here
-
+    formatted_query = format_query(query, "video")
+    context = await rag.search_image(files, query, embedding_model, domain)
+    text_data = [document["text"] for document in context["message"]]
+  
     # Parse message history and generation params
     parsed_messages = json.loads(messages)
-    parsed_messages.append({"role": "assistant", "content": ""})
     generation_params = json.loads(gen_params)
     sampling = not "num_beams" in gen_params
+
+    # Create system prompt only for first interaction
+    if len(parsed_messages) == 0 or parsed_messages[0]["role"] != "system":
+        system_prompt = create_system_prompt(domain)
+        parsed_messages.insert(0, {"role": "system", "content": system_prompt})
+
+    # Create user query prompt for the current interaction
+    user_query = parsed_messages.pop()["content"]
+    rag_prompt = create_user_prompt(user_query, text_data)
+
+    parsed_messages.append({"role": "user", "content": rag_prompt})
+    parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
     response = mplug_manager.respond(
