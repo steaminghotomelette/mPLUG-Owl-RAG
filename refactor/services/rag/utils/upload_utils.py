@@ -1,12 +1,10 @@
 import requests
 import json
-import time
 import math
 from io import BytesIO
 from typing import List, Dict, Tuple
 import pymupdf
 from langchain.text_splitter import CharacterTextSplitter
-
 
 def chunk_document(document: BytesIO, max_size: int = 100, chunk_overlap: int = 20) -> Tuple[List[str], List[Dict]]:
     """Splits a PDF document into chunks of text.

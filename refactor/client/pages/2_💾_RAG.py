@@ -1,16 +1,16 @@
 from io import BytesIO
 from typing import Dict, List
 from fastapi import UploadFile
-import streamlit as st
 from requests import post
 from PIL import Image
 from streamlit_pdf_viewer import pdf_viewer
+import streamlit as st
 import tempfile
 import pandas as pd
 
 # Constants
 PAGE_NAME = "RAG Management"
-API_BASE_URL = "http://127.0.0.1:8000/rag_documents"
+API_BASE_URL = "http://127.0.0.1:8080/rag_documents"
 
 # --------------------------------------------
 # API Calls
@@ -34,7 +34,6 @@ def upload_to_rag(files_upload: List[UploadFile], metadata: List[str], embed_mod
     data = {"metadata": metadata, "embedding_model": embed_model, "domain": domain}
     response = post(url, files=files, data=data)
     return response.json()
-
 
 def search_rag_image(files_upload: List, query: str, embed_model: str, domain: str) -> dict:
     """
@@ -61,7 +60,6 @@ def search_rag_image(files_upload: List, query: str, embed_model: str, domain: s
         return response.json()
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
-    
 
 def search_rag_video(files_upload: List, query: str, embed_model: str, domain: str) -> dict:
     """
@@ -88,7 +86,6 @@ def search_rag_video(files_upload: List, query: str, embed_model: str, domain: s
         return response.json()
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
-
 
 def reset_rag():
     """
@@ -123,7 +120,6 @@ def display_search_result(result: List[Dict]):
             st.dataframe(df)
     else:
         st.warning("No relevant context.")
-
 
 def preview_file(file: UploadFile):
     """
@@ -376,8 +372,6 @@ def main() -> None:
 
             if display_search_result_toggle:
                 display_search_result(st.session_state['search_response'].get('content', []))
-
-
 
 if __name__ == "__main__":
     main()

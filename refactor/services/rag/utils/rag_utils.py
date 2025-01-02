@@ -16,8 +16,6 @@ THRESHOLD = {
 
 _concat_tables_args = {"promote_options": "default"}
 
-
-
 # --------------------------------------------
 # Enum
 # --------------------------------------------
@@ -29,7 +27,6 @@ class Domain(Enum):
     FORENSICS   = "Forensics"
     DEFAULT     =  MEDICAL
 
-
 class EmbeddingModel(Enum):
     """
     Enum class for embedding models supported
@@ -37,7 +34,6 @@ class EmbeddingModel(Enum):
     BLIP    = "BLIP"
     CLIP    = "CLIP"
     DEFAULT =  BLIP
-
 
 # --------------------------------------------
 # Results processing
@@ -125,17 +121,3 @@ def deduplicate(table: pa.Table):
     except Exception as e:
         raise Exception(f"Failed deduplication: {table.schema} {e}")
     
-def format_query(query: str, tag: str) -> str:
-    """Formats the query based on the type of search.
-
-    Args:
-        query (str): The query string.
-        type (str): The type of search (e.g., "text", "image").
-
-    Returns:
-        str: The formatted query string.
-    """
-    if tag in ["image", "video"]:
-        return f"<|{tag}|><|{tag}|>{query}"
-    else:
-        raise ValueError(f"Invalid search type: {type}")
