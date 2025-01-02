@@ -16,7 +16,7 @@ def create_system_prompt(domain: str) -> str:
     Constructs a system prompt based on the domain.
     """
     rag_prompt = PromptTemplate(
-        input_variables=["user_query", "retrieved_context", "domain"],
+        input_variables=["domain"],
         template=(
             """
             You are a knowledgeable {domain} expert. Your task is to answer a
