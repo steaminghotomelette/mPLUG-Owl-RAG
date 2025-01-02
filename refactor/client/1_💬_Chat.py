@@ -34,6 +34,8 @@ def request_model_response(
         files: List,
         formatted_messages: List[Dict[str, str]],
         gen_params: Dict[str, Any],
+        domain: str,
+        embedding_model: str,
         prompt: str,
         streaming: bool = STREAMING
 ) -> Dict[str, str]:
@@ -47,6 +49,8 @@ def request_model_response(
     payload = {
         "messages": json.dumps(formatted_messages),
         "gen_params": json.dumps(gen_params),
+        "domain": domain,
+        "embedding_model": embedding_model,
         "query": prompt,
         "streaming": streaming
     }
@@ -249,6 +253,8 @@ def main() -> None:
                 st.session_state["uploaded_files"],
                 st.session_state["formatted_messages"],
                 st.session_state["gen_params"],
+                st.session_state["domain"],
+                st.session_state["embedding_model"],
                 prompt,
                 streaming=STREAMING
             )

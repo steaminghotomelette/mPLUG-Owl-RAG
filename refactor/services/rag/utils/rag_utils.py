@@ -124,3 +124,18 @@ def deduplicate(table: pa.Table):
         return table
     except Exception as e:
         raise Exception(f"Failed deduplication: {table.schema} {e}")
+    
+def format_query(query: str, tag: str) -> str:
+    """Formats the query based on the type of search.
+
+    Args:
+        query (str): The query string.
+        type (str): The type of search (e.g., "text", "image").
+
+    Returns:
+        str: The formatted query string.
+    """
+    if tag in ["image", "video"]:
+        return f"<|{tag}|><|{tag}|>{query}"
+    else:
+        raise ValueError(f"Invalid search type: {type}")
