@@ -41,9 +41,9 @@ def process_row(row: pd.Series, output_dir: str, index: int, offset: str) -> Dic
             inspect_image_data(row)
     
     return {
-        "query": f"<|image|>{str(row['question']).strip()}",
+        "query": f"<|image|><|image|>{str(row['question']).strip()}",
         "response": str(row['answer']).strip(),
-        "images": [f"images/image_{index}_{offset}.png"]
+        "images": [f"images/image_{index}_{offset}.png", f"images/image_{index}_{offset}.png"]
     }
 
 def convert_parquet_to_json(input_path: str, output_dir: str, output_file_name: str, offset: str) -> None:

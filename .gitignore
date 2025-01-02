@@ -9,6 +9,7 @@ scripts/data_prepare/data
 datasets*/
 images*/
 images.zip
+iic*/
 lancedb
 
 #Megatron

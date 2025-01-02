@@ -13,9 +13,9 @@ def clean_mcq_option(text: str) -> str:
 def process_row1(row: Dict[str, str]) -> Dict[str, str]:
     # Get the correct answer text based on the Answer_label    
     return {
-        "query": f'<|image|>{row["Question"].strip()}',
+        "query": f'<|image|><|image|>{row["Question"].strip()}',
         "response": str(row["Answer"]),
-        "images": [f"images/{row['Figure_path']}"]
+        "images": [f"images/{row['Figure_path']}", f"images/{row['Figure_path']}"]
     }
 
 def process_row2(row: Dict[str, str]) -> Dict[str, str]:
@@ -29,9 +29,9 @@ def process_row2(row: Dict[str, str]) -> Dict[str, str]:
     }
        
     return {
-        "query": f'<|image|>{row["Question"].strip()}',
+        "query": f'<|image|><|image|>{row["Question"].strip()}',
         "response": clean_mcq_option(answer_map[answer_label]),
-        "images": [f"images/{row['Figure_path']}"]
+        "images": [f"images/{row['Figure_path']}", f"images/{row['Figure_path']}"]
     }
 
 def convert_csv_to_json(csv_path: str, output_path: str, row_proccessor_fn) -> None:
