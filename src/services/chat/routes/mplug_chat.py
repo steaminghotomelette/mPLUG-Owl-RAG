@@ -20,12 +20,15 @@ router = APIRouter(
 # Globals and Environment Setup
 # --------------------------------------------
 load_dotenv()
-MPLUG_MODEL_PATH = os.getenv("MPLUG_MODEL_PATH")
-ATTN_IMPLEMENTATION = os.getenv("ATTN_IMPLEMENTATION")
-RAG_API_BASE_URL = "http://127.0.0.1:8080/rag_documents"
+MPLUG_MEDICAL_MODEL_PATH   = os.getenv("MPLUG_MEDICAL_MODEL_PATH")
+MPLUG_FORENSICS_MODEL_PATH = os.getenv("MPLUG_FORENSICS_MODEL_PATH")
+ATTN_IMPLEMENTATION        = os.getenv("ATTN_IMPLEMENTATION")
+RAG_API_BASE_URL           = "http://127.0.0.1:8080/rag_documents"
 
 # Mplug model manager
-mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH, ATTN_IMPLEMENTATION)
+MPLUG_MEDICAL_MODEL   = MplugOwl3ModelManager(MPLUG_MEDICAL_MODEL_PATH, ATTN_IMPLEMENTATION)
+MPLUG_FORENSICS_MODEL = MplugOwl3ModelManager(MPLUG_FORENSICS_MODEL_PATH, ATTN_IMPLEMENTATION)
+DOMAIN_MODEL_MAP      = {"Medical": MPLUG_MEDICAL_MODEL, "Forensics": MPLUG_FORENSICS_MODEL}
 
 # --------------------------------------------
 # Request Functions
@@ -108,6 +111,7 @@ async def image_chat_mplug(
     parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
+    mplug_manager = DOMAIN_MODEL_MAP["domain"]
     response = mplug_manager.respond(
         parsed_messages,
         images=files,
@@ -153,6 +157,7 @@ async def image_chat_mplug(
     parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
+    mplug_manager = DOMAIN_MODEL_MAP["domain"]
     response = mplug_manager.respond(
         parsed_messages,
         videos=files,
