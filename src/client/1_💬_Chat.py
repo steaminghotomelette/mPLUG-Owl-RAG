@@ -17,11 +17,11 @@ def process_prompt(prompt: str) -> str:
     # Check for images in the session state and format them accordingly
     if st.session_state.get("image_uploader"):
         image_markers = "".join([f"<|image|>" for _ in st.session_state["image_uploader"]])
-        return f"{image_markers}\n{prompt}"
+        return f"{image_markers}{prompt}"
 
     # Check for video in the session state and format it accordingly
     elif st.session_state.get("video_uploader"):
-        return f"<|video|>\n{prompt}"
+        return f"<|video|>{prompt}"
     
     else:
         return prompt

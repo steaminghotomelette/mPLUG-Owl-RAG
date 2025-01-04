@@ -1,12 +1,12 @@
 import json
 import os
+import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from utils.mplug_manager import MplugOwl3ModelManager
-from utils.prompt_utils import filter_stream, create_system_prompt, create_user_prompt
-from requests import post
-from typing import List, Dict, Union
+from utils.prompt_utils import filter_stream, create_system_prompt, create_image_based_prompt, create_video_based_prompt
+from typing import List, Dict, Union, Any
 
 # --------------------------------------------
 # Router Initialization
@@ -30,29 +30,41 @@ mplug_manager = MplugOwl3ModelManager(MPLUG_MODEL_PATH, ATTN_IMPLEMENTATION)
 # --------------------------------------------
 # Request Functions
 # --------------------------------------------
-def search_rag_image(files_upload: List, query: str, embed_model: str, domain: str) -> dict:
+async def search_rag_image(files_upload: List[UploadFile], query: str, embed_model: str, domain: str) -> Dict[str, Any]:
     try:
         url = f"{RAG_API_BASE_URL}/search"
+        
+        # Prepare files for async upload
         files = []
         for file in files_upload:
-            files.append(("files", (file.name, file.read(), file.type)))
+            content = await file.read()
+            files.append(("files", (file.filename, content, file.content_type)))
 
         data = {"query": query, "embedding_model": embed_model, "domain": domain}
-        response = post(url, files=files, data=data)
-        return response.json()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, files=files, data=data, timeout=None)
+            return response.json()
+            
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
 
-def search_rag_video(files_upload: List, query: str, embed_model: str, domain: str) -> dict:
+async def search_rag_video(files_upload: List[UploadFile], query: str, embed_model: str, domain: str) -> Dict[str, Any]:
     try:
         url = f"{RAG_API_BASE_URL}/search_video"
+        
+        # Prepare files for async upload
         files = []
         for file in files_upload:
-            files.append(("files", (file.name, file.read(), file.type)))
+            content = await file.read()
+            files.append(("files", (file.filename, content, file.content_type)))
 
         data = {"query": query, "embedding_model": embed_model, "domain": domain}
-        response = post(url, files=files, data=data)
-        return response.json()
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, files=files, data=data, timeout=None)
+            return response.json()
+            
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
 
@@ -71,7 +83,6 @@ async def image_chat_mplug(
 ) -> Union[Dict[str, str], StreamingResponse]:
     
     context = await search_rag_image(files, query, embedding_model, domain)
-    text_data = [document["text"] for document in context["message"]]
 
     # Parse message history and generation params
     parsed_messages = json.loads(messages)
@@ -85,7 +96,13 @@ async def image_chat_mplug(
 
     # Create user query prompt for the current interaction
     user_query = parsed_messages.pop()["content"]
-    rag_prompt = create_user_prompt(user_query, text_data)
+    prompt_data = create_image_based_prompt(user_query, context)
+    rag_prompt = prompt_data[1]
+
+    # Update the images list
+    temp = files.pop()
+    files.extend(prompt_data[0])
+    files.append(temp)
 
     parsed_messages.append({"role": "user", "content": rag_prompt})
     parsed_messages.append({"role": "assistant", "content": ""})
@@ -117,7 +134,6 @@ async def image_chat_mplug(
 ) -> Union[Dict[str, str], StreamingResponse]:
     
     context = await search_rag_video(files, query, embedding_model, domain)
-    text_data = [document["text"] for document in context["message"]]
   
     # Parse message history and generation params
     parsed_messages = json.loads(messages)
@@ -131,7 +147,7 @@ async def image_chat_mplug(
 
     # Create user query prompt for the current interaction
     user_query = parsed_messages.pop()["content"]
-    rag_prompt = create_user_prompt(user_query, text_data)
+    rag_prompt = create_video_based_prompt(user_query, context)
 
     parsed_messages.append({"role": "user", "content": rag_prompt})
     parsed_messages.append({"role": "assistant", "content": ""})

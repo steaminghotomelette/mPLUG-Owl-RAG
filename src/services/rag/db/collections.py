@@ -102,7 +102,7 @@ def create_user_table(
 # Populate Medical Collection
 # --------------------------------------------
 def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
-     # Validate table
+    # Validate table
     if "image_embedding" not in table.schema.names:
         raise Exception("Table must have 'image_embedding' field")
     if "text_embedding" not in table.schema.names:

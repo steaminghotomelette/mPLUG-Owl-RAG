@@ -1,10 +1,11 @@
-from typing import Generator
+from typing import Generator, Dict, List, Tuple, Any
 from langchain.prompts import PromptTemplate
+from PIL import Image
+from io import BytesIO
+import base64
 
-# --------------------------------------------
-# Utility Functions
-# --------------------------------------------
 def filter_stream(original_generator: Generator) -> Generator:
+    """Filters out specific strings from a generator stream."""
     for value in original_generator:
         if "<|im_start|>assistant" in value:
             continue
@@ -12,71 +13,69 @@ def filter_stream(original_generator: Generator) -> Generator:
             yield value
 
 def create_system_prompt(domain: str) -> str:
-    """
-    Constructs a system prompt based on the domain.
-    """
+    """Constructs a system prompt based on the domain."""
     rag_prompt = PromptTemplate(
         input_variables=["domain"],
         template=(
-            """
-            You are a knowledgeable {domain} expert. Your task is to answer a
-            question using the provided external documents. Note that some of these documents
-            may be noisy or irrelevant to the question.
-
-            Instructions:
-            1. Carefully analyze all provided documents.
-            2. Identify which documents are relevant and which are irrelevant to the question.
-            3. Think through the problem step-by-step, using only the relevant documents to determine the
-            correct answer.
-            
-            Your responses will be used for research purposes only, so please provide a definite answer and format the output as a JSON object as instructed.
-            If all of the retrieved documents are irrelevant, you have two options:
-            1. Answer based on your own knowledge if you are absolutely certain.
-            2. Refuse to answer by setting 'answer_choice' to 'insufficient information'.
-            """
+            "You are a knowledgeable {domain} expert. Your task is to answer a "
+            "question using the provided external documents. Note that some of these documents "
+            "may be noisy or irrelevant to the question.\n\n"
+            "Instructions:\n"
+            "1. Carefully analyze all provided documents.\n"
+            "2. Identify which documents are relevant and which are irrelevant to the question.\n"
+            "3. Think through the problem step-by-step, using only the relevant documents to determine the correct answer.\n\n"
+            "Your responses will be used for research purposes only, so please provide a definite answer. "
+            "If all of the retrieved documents are irrelevant or there are no retrieved documents, you have two options:\n"
+            "1. Answer based on your own knowledge if you are absolutely certain.\n"
+            "2. Refuse to answer by replying that you have insufficient information."
         )
     )
-    # Fill in the template
     return rag_prompt.format(domain=domain)
 
-def create_user_prompt(user_query: str, retrieved_chunks: str) -> str:
-    """
-    Constructs a system prompt using the query, and retrieved chunks.
-    """
-    formatted_context = format_context(retrieved_chunks)
+def create_image_based_prompt(
+    user_query: str, retrieved_context: Dict[str, Any]
+) -> Tuple[List[Image.Image], str]:
+    """Creates a prompt for image-based queries with associated context."""
+    formatted_context = "" if len(retrieved_context.get("content", [])) > 0 else "\nNo context retrieved."
+    images = []
+
+    for context_chunk in retrieved_context.get("content", []):
+        if "image_data" in context_chunk:
+            formatted_context += f"\n- <|image|>{context_chunk.get('text', '')}"
+            try:
+                image_data = base64.b64decode(context_chunk["image_data"])
+                images.append(Image.open(BytesIO(image_data)).convert("RGB"))
+            except Exception as e:
+                raise ValueError(f"Error decoding image data: {e}")
+        else:
+            formatted_context += f"\n- {context_chunk.get('text', '')}"
+
     rag_prompt = PromptTemplate(
         input_variables=["user_query", "retrieved_context"],
         template=(
-            """
-            Here are the relevant documents:
-            {retrieved_context}
-            Here is the question:
-            {user_query}
-            Please think step-by-step and provide a clear and concise answer to the question.
-            """
+            "Here are the relevant documents:"
+            "{retrieved_context}\n\n"
+            "Here is the question:\n"
+            "{user_query}\n\n"
+            "Please think step-by-step and provide a clear and concise answer to the question or refuse to answer if you have insufficient information."
         )
     )
-    # Fill in the template
+    return (images, rag_prompt.format(user_query=user_query, retrieved_context=formatted_context))
+
+def create_video_based_prompt(user_query: str, retrieved_context: Dict[str, Any]) -> str:
+    """Creates a prompt for video-based queries using relevant context."""
+    formatted_context = "" if len(retrieved_context.get("content", [])) > 0 else "\nNo context retrieved."
+    for context_chunk in retrieved_context.get("content", []):
+        formatted_context += f"\n- {context_chunk.get('text', '')}"
+
+    rag_prompt = PromptTemplate(
+        input_variables=["user_query", "retrieved_context"],
+        template=(
+            "Here are the relevant documents:"
+            "{retrieved_context}\n\n"
+            "Here is the question:\n"
+            "{user_query}\n\n"
+            "Please think step-by-step and provide a clear and concise answer to the question or refuse to answer if you have insufficient information."
+        )
+    )
     return rag_prompt.format(user_query=user_query, retrieved_context=formatted_context)
-
-def format_context(chunks):
-    """
-    Formats a list of text chunks into a single string suitable for insertion into the prompt.
-    """
-    return "\n\n".join(f"- {chunk}" for chunk in chunks)
-
-# DEPRECATED
-# def format_query(query: str, tag: str) -> str:
-#     """Formats the query based on the type of search.
-
-#     Args:
-#         query (str): The query string.
-#         type (str): The type of search (e.g., "text", "image").
-
-#     Returns:
-#         str: The formatted query string.
-#     """
-#     if tag in ["image", "video"]:
-#         return f"<|{tag}|><|{tag}|>{query}"
-#     else:
-#         raise ValueError(f"Invalid search type: {type}")

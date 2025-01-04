@@ -60,10 +60,10 @@ class MplugOwl3ModelManager:
             vr = VideoReader(video, ctx=cpu(0))
         else:
             file_bytes = BytesIO()
+            video.file.seek(0) # Reset file pointer
             file_bytes.write(video.file.read())
             file_bytes.seek(0)
             vr = VideoReader(file_bytes, ctx=cpu(0))
-            video.file.seek(0) # Reset file pointer
 
         sample_fps = round(vr.get_avg_fps() / 1)
         frame_idx = [i for i in range(0, len(vr), sample_fps)]
@@ -80,12 +80,12 @@ class MplugOwl3ModelManager:
         if isinstance(image, str):
             return Image.open(image).convert("RGB")
         elif isinstance(image, Image.Image):
-            return image.convert("RGB")
+            return image
         else:
             file_bytes = BytesIO()
+            image.file.seek(0) # Reset file pointer
             file_bytes.write(image.file.read())
             file_bytes.seek(0)
-            image.file.seek(0) # Reset file pointer
             return Image.open(file_bytes).convert("RGB")
     
     # --------------------------------------------
