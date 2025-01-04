@@ -1,4 +1,8 @@
+from io import BytesIO
+import json
+import os
 import lancedb
+from tqdm import tqdm
 import db.schemas as schemas
 from db.constants import MM_COLLECTION_NAME, USER_COLLECTION_NAME, DOC_COLLECTION_NAME, BATCH_SIZE
 from utils.rag_utils import Domain
@@ -98,7 +102,59 @@ def create_user_table(
 # Populate Medical Collection
 # --------------------------------------------
 def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
-    pass
+     # Validate table
+    if "image_embedding" not in table.schema.names:
+        raise Exception("Table must have 'image_embedding' field")
+    if "text_embedding" not in table.schema.names:
+        raise Exception("Table must have 'text_embedding' field")
+    
+    try:
+        files = sorted([f for f in os.listdir('db/seed/pmc_vqa') if f.startswith("pmc_vqa_rag_") and f.endswith(".json")])
+        
+        for filename in tqdm(files, total=len(files),
+                            bar_format='[{elapsed}<{remaining}] {n_fmt}/{total_fmt} | {l_bar}{bar} {rate_fmt}{postfix}', 
+                            desc=f'Inserting multimodal medical data:'):
+            # Load data
+            with open(f'db/seed/pmc_vqa/{filename}', 'r', encoding="utf-8", errors="ignore") as file:
+                data = json.load(file)
+            
+            # Prepare path for images
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..","..",".."))
+            img_dir = os.path.join(base_dir, "images")
+
+            # Prepare data batch
+            batch_data = []
+            for i, record in tqdm(enumerate(data), total=len(data), 
+                                  bar_format='[{elapsed}<{remaining}] {n_fmt}/{total_fmt} | {l_bar}{bar} {rate_fmt}{postfix}', 
+                                  desc=f'Inserting file: {filename}'):
+                # Obtain contexts
+                text = f"{record['context']}"
+                with open(os.path.join(img_dir, record['image']), "rb") as image_file:
+                    image_data = BytesIO(image_file.read())
+
+                # Generate embeddings
+                image_embedding, raw_image = embedding_model.embed_image(image_data)
+                text_embedding = embedding_model.embed_text(text)
+
+                batch_data.append(
+                    {
+                        "id": i + 1,
+                        "text": text,
+                        "text_embedding": text_embedding,
+                        "image_embedding": image_embedding,
+                        "image_data": raw_image,
+                        "metadata": None
+                    }
+                )
+
+                if len(batch_data) % BATCH_SIZE == 0:
+                    table.add(batch_data)
+                    batch_data = []
+            
+            if len(batch_data) != 0:
+                table.add(batch_data)
+    except Exception as e:
+        raise Exception(f"Failed inserting medical multimodal dataset: {e}")
 
 
 def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
