@@ -111,7 +111,7 @@ async def image_chat_mplug(
     parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
-    mplug_manager = DOMAIN_MODEL_MAP["domain"]
+    mplug_manager = DOMAIN_MODEL_MAP[domain]
     response = mplug_manager.respond(
         parsed_messages,
         images=files,
@@ -157,7 +157,7 @@ async def image_chat_mplug(
     parsed_messages.append({"role": "assistant", "content": ""})
 
     # Generate response
-    mplug_manager = DOMAIN_MODEL_MAP["domain"]
+    mplug_manager = DOMAIN_MODEL_MAP[domain]
     response = mplug_manager.respond(
         parsed_messages,
         videos=files,
