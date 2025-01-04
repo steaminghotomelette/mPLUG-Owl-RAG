@@ -124,6 +124,7 @@ def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManage
 
             # Prepare data batch
             batch_data = []
+            before = table.count_rows()
             for i, record in tqdm(enumerate(data), total=len(data), 
                                   bar_format='[{elapsed}<{remaining}] {n_fmt}/{total_fmt} | {l_bar}{bar} {rate_fmt}{postfix}', 
                                   desc=f'Inserting file: {filename}'):
@@ -138,7 +139,7 @@ def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManage
 
                 batch_data.append(
                     {
-                        "id": i + 1,
+                        "id": before + i + 1,
                         "text": text,
                         "text_embedding": text_embedding,
                         "image_embedding": image_embedding,
