@@ -74,7 +74,10 @@ async def search_image(
         embedding_model (str): Embedding model to use for the file.
         domain (str): Current domain specified.
     """
-    return await rag.search_image(files, query, embedding_model, domain)
+    try:
+        return await rag.search_image(files, query, embedding_model, domain)
+    except Exception as e:
+        raise Exception(f"search_image failed: {e}")
 
 @router.post("/search_video")
 async def search_video(
@@ -96,4 +99,7 @@ async def search_video(
     Returns:
        Dict containing relevant texts within 'content' key 
     """
-    return await rag.search_video(files, query, embedding_model, domain)
+    try:
+        return await rag.search_video(files, query, embedding_model, domain)
+    except Exception as e:
+        raise Exception(f"search_video failed: {e}")

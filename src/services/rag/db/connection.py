@@ -26,7 +26,6 @@ class DBConnection:
         return collections
     
     def create_or_load_collection(self, collection_name: str, embedding_model: EmbeddingModelManager, domain: Domain) -> None:
-
         # Get existing collections
         existing_collections = self.list_collections()
 

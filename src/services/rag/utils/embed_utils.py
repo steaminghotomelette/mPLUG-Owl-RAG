@@ -1,4 +1,4 @@
-from transformers import CLIPProcessor, CLIPModel, Blip2Processor, Blip2Model
+from transformers import Blip2Processor, Blip2Model
 from io import BytesIO
 from PIL import Image
 from typing import Any, Union, Tuple, List
@@ -37,15 +37,6 @@ class EmbeddingModelManager:
                     self.output_hidden_states   = True
                     self.image_dimension        = 1408
                     self.text_dimension         = 2560
-                
-                case EmbeddingModel.CLIP:
-                    self.model                  = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", load_in_8bit=True, device_map=self.device)
-                    self.processor              = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-                    self.get_image_embedding    = lambda x: x
-                    self.get_text_embedding     = lambda x: x[0]
-                    self.output_hidden_states   = False
-                    self.image_dimension        = 512
-                    self.text_dimension         = 512
                 
                 case _:
                     self.model_type = EmbeddingModel.DEFAULT
