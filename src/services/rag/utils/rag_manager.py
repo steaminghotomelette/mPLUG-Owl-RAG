@@ -58,7 +58,6 @@ class RAGManager():
         Update embedding model and RAG target collection upon embedding model change
         """
         if self.is_model_changed(embedding_model, domain):
-            self.embedding_model_manager.init_model(EmbeddingModel(embedding_model))
             self.domain = Domain(domain)
             self.load_collections()
 

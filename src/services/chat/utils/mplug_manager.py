@@ -13,8 +13,8 @@ class MplugOwl3ModelManager:
     # --------------------------------------------
     MODEL_NAME = "mPLUG-Owl3"
     MAX_NUM_FRAMES = 128
-    MAX_NEW_TOKENS = 1000
-    MIN_NEW_TOKENS = 100
+    MAX_NEW_TOKENS = 500
+    MIN_NEW_TOKENS = 0
 
     # --------------------------------------------
     # Initialization
