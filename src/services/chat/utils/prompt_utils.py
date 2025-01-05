@@ -25,7 +25,7 @@ def create_system_prompt(domain: str) -> str:
             "2. Identify which documents are relevant and which are irrelevant to the question.\n"
             "3. Think through the problem step-by-step, using only the relevant documents to determine the correct answer.\n\n"
             "Your responses will be used for research purposes only, so please provide a definite answer. "
-            "If all of the retrieved documents are irrelevant or there are no retrieved documents, you have two options:\n"
+            "If all of the retrieved documents are irrelevant, you have two options:\n"
             "1. Answer based on your own knowledge if you are absolutely certain.\n"
             "2. Refuse to answer by replying that you have insufficient information."
         )
@@ -40,7 +40,7 @@ def create_image_based_prompt(
     images = []
 
     for context_chunk in retrieved_context.get("content", []):
-        if "image_data" in context_chunk:
+        if context_chunk.get("image_data", None) is not None:
             formatted_context += f"\n- <|image|>{context_chunk.get('text', '')}"
             try:
                 image_data = base64.b64decode(context_chunk["image_data"])
@@ -57,7 +57,7 @@ def create_image_based_prompt(
             "{retrieved_context}\n\n"
             "Here is the question:\n"
             "{user_query}\n\n"
-            "Please think step-by-step and provide a clear and concise answer to the question or refuse to answer if you have insufficient information."
+            "Please think step-by-step and provide a clear and concise answer to the question, do not repeat yourself."
         )
     )
     return (images, rag_prompt.format(user_query=user_query, retrieved_context=formatted_context))
@@ -75,7 +75,7 @@ def create_video_based_prompt(user_query: str, retrieved_context: Dict[str, Any]
             "{retrieved_context}\n\n"
             "Here is the question:\n"
             "{user_query}\n\n"
-            "Please think step-by-step and provide a clear and concise answer to the question or refuse to answer if you have insufficient information."
+            "Please think step-by-step and provide a clear and concise answer to the question, do not repeat yourself."
         )
     )
     return rag_prompt.format(user_query=user_query, retrieved_context=formatted_context)
