@@ -38,6 +38,7 @@ def create_text_schema(text_dimension: int) -> pa.Schema:
     schema = pa.schema([
         pa.field('id', pa.int64()),
         pa.field('text', pa.string()),
+        pa.field('title', pa.string()),
         pa.field('text_embedding', pa.list_(pa.float32(), text_dimension)),
         pa.field('metadata', pa.string()),
     ])

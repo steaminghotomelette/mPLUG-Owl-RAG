@@ -162,3 +162,56 @@ def contextualize_chunks(chunks, api_key, batch_size=5):
         return new_chunks
     except Exception as e:
         raise Exception(f"Contextualize chunks failed: {e}")
+
+def summarize_text(chunk: str, api_key: str) -> str:
+    """
+    Uses the Gemini API to provide context for each chunk of text.
+
+    Args:
+        chunks (List[str]): Text chunks (when combined, comprise the entire document).
+        api_key (str): API key for the Gemini API.
+
+    Returns:
+        List[str]: List of text chunks with context.
+    """
+    try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+
+        # Define the prompt for each chunk
+        prompt = f"""
+        Extract essential diagnostic information from this medical wiki page to assist in diagnosing based on visual or text prompts:
+        {chunk}
+        """
+
+        # Prepare the request data
+        data = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        # Make the API call for each chunk
+        response = requests.post(f"{url}?key={api_key}", headers=headers, data=json.dumps(data))
+
+        if response.status_code == 200:
+            response_data = response.json()
+
+            # Extract and process the context from the response
+            summary = response_data['candidates'][0]['content']['parts'][0]['text'].strip()
+            return summary
+        else:
+            # If there is an error, return the original chunk
+            return chunk
+
+    except Exception as e:
+        raise Exception(f"Contextualize chunks failed: {e}")

@@ -7,6 +7,9 @@ import db.schemas as schemas
 from db.constants import MM_COLLECTION_NAME, USER_COLLECTION_NAME, DOC_COLLECTION_NAME, BATCH_SIZE
 from utils.rag_utils import Domain
 from utils.embed_utils import EmbeddingModelManager
+import pandas as pd
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from utils.upload_utils import summarize_text
 
 # --------------------------------------------
 # General Collection Creation
@@ -157,9 +160,47 @@ def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManage
     except Exception as e:
         raise Exception(f"Failed inserting medical multimodal dataset: {e}")
 
-
 def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
-   pass
+    try:
+        df = pd.read_parquet('db/seed/MedWiki_HybridFilter.parquet')
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+
+        # Process each document
+        batch_data = []
+        before = table.count_rows()
+        for i, record in tqdm(df.iterrows(), total=len(df), desc='Processing medical wiki pages'):
+            page_text = record['page_text']
+            page_title = record['page_title']
+
+            # Summarize the text to extract key medical details
+            summarized_text = summarize_text(page_text, os.getenv("GEMINI_API_KEY"))
+            chunks = text_splitter.split_text(summarized_text)
+            
+            # Process each chunk
+            for chunk in chunks:
+                text_embedding = embedding_model.embed_text(chunk)
+
+                batch_data.append(
+                    {
+                        "id": before + i + 1,
+                        "title": page_title,
+                        "text": chunk,
+                        "text_embedding": text_embedding,
+                        "metadata": None
+                    }
+                )
+
+                # Batch insert
+                if len(batch_data) % BATCH_SIZE == 0:
+                    table.add(batch_data)
+                    batch_data = []
+
+        # Insert remaining data
+        if batch_data:
+            table.add(batch_data)
+        
+    except Exception as e:
+        raise Exception(f"Failed inserting medical wiki pages: {e}")
 
 # --------------------------------------------
 # Populate Forensics Collection
