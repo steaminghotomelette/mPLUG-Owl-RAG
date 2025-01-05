@@ -110,8 +110,7 @@ def display_search_result(result: List[Dict]):
         df.rename(columns={
                 'text': 'Text',
                 'metadata': 'Metadata',
-                '_relevance_score': 'Initial Relevance Score',
-                '_weighted_relevance_score': 'Weighted Relevance Score'
+                '_relevance_score': 'Relevance Score',
             }, inplace=True)
         if 'image_data' in df.columns:
             df['image_data'] = df['image_data'].apply(lambda x: f'data:image/jpeg;base64,{x}')
@@ -168,7 +167,7 @@ def sidebar_configuration():
     sidebar_text.text(f"Current embedding model: \
                         {st.session_state.embedding_model}")
     
-    options = ["CLIP", "BLIP"]
+    options = ["BLIP"]
     index = options.index(st.session_state.get("embedding_model", "BLIP"))
     embed_model = st.sidebar.selectbox("Select embedding model",
                                         options=options, 
@@ -339,7 +338,7 @@ def main() -> None:
                 response = search_rag_video(search_media_file, query, st.session_state.get("embed_model"), st.session_state.get("domain"))
                 if response.get('success'):
                     st.session_state['embedding_model'] = st.session_state.get("embed_model")
-                    st.session_state['search_response'] = response
+                    st.session_state['search_vid_response'] = response
                     st.session_state['domain'] = st.session_state.get("domain")
                     st.success("Search completed successfully.")
                 else:
@@ -366,12 +365,12 @@ def main() -> None:
                 key="display2"
             )
 
-        if st.session_state.get('search_response'):
+        if st.session_state.get('search_vid_response'):
             if response_debug_toggle:
-                st.json(st.session_state['search_response'])
+                st.json(st.session_state['search_vid_response'])
 
             if display_search_result_toggle:
-                display_search_result(st.session_state['search_response'].get('content', []))
+                display_search_result(st.session_state['search_vid_response'].get('content', []))
 
 if __name__ == "__main__":
     main()
