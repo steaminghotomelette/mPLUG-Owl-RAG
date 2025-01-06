@@ -181,9 +181,10 @@ def summarize_text(chunk: str, api_key: str) -> str:
 
         # Define the prompt for each chunk
         prompt = f"""
-        Extract essential diagnostic information from this medical wiki page to assist in diagnosing based on visual or text prompts:
+        Analyze the following medical wiki entry and extract key diagnostic details, symptoms, and relevant indicators. Respond with essential information only, without markdown formatting or additional commentary:
         {chunk}
         """
+
 
         # Prepare the request data
         data = {
