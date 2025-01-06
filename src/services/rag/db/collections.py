@@ -9,7 +9,8 @@ from utils.rag_utils import Domain
 from utils.embed_utils import EmbeddingModelManager
 import pandas as pd
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from utils.upload_utils import summarize_text
+from utils.upload_utils import summarize_text, chunk_document
+import io
 
 # --------------------------------------------
 # General Collection Creation
@@ -213,8 +214,42 @@ def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelMana
 # Populate Forensics Collection
 # --------------------------------------------
 def insert_for_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
-   pass
+    pass
         
 
 def insert_for_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelManager) -> None:
-    pass
+    try:
+        with open("db/seed/Elements-of-Crimes.pdf", "rb") as document:
+            document_stream = io.BytesIO(document.read())
+            texts, metadata = chunk_document(document_stream, max_size=500, chunk_overlap=50)
+        
+        # Process each chunk
+        batch_data = []
+        before = table.count_rows()
+        for i, text in tqdm(enumerate(texts), total=len(texts), desc='Processing forensics document'):
+            text_embedding = embedding_model.embed_text(text)
+
+            batch_data.append(
+                {
+                    "id": before + i + 1,
+                    "text": text,
+                    "title": None,
+                    "text_embedding": text_embedding,
+                    "metadata": str(metadata[i]["page"])
+                }
+            )
+            
+            # Batch insert
+            if len(batch_data) % 20 == 0:
+                table.add(batch_data)
+                batch_data = []
+                
+        # Insert remaining data
+        if batch_data:
+            table.add(batch_data)
+        
+        # Indexing
+        schemas.create_index(table)
+        
+    except Exception as e:
+        raise Exception(f"Failed inserting forensics document: {e}")
