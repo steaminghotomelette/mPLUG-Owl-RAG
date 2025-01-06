@@ -5,6 +5,7 @@ from io import BytesIO
 from typing import List, Dict, Tuple
 import pymupdf
 from langchain.text_splitter import CharacterTextSplitter
+import re
 
 def chunk_document(document: BytesIO, max_size: int = 100, chunk_overlap: int = 20) -> Tuple[List[str], List[Dict]]:
     """Splits a PDF document into chunks of text.
@@ -74,13 +75,14 @@ def chunk_document(document: BytesIO, max_size: int = 100, chunk_overlap: int = 
     except Exception as e:
         raise Exception(f"Split document failed: {e}")
 
-def contextualize_chunks(chunks, api_key, batch_size=5):
+def contextualize_chunks(chunks: List[str], api_key: str, domain: str, batch_size: int = 5) -> List[str]:
     """
-    Uses the Gemini API to provide context for each chunk of text in larger batches, expecting JSON output.
+    Uses the Gemini API to provide context for each chunk of text.
 
     Args:
         chunks (List[str]): Text chunks (when combined, comprise the entire document).
         api_key (str): API key for the Gemini API.
+        domain (str): Domain to tailor context (e.g., legal, medical, etc.).
         batch_size (int): Number of chunks to process per API call (batch size).
 
     Returns:
@@ -91,34 +93,24 @@ def contextualize_chunks(chunks, api_key, batch_size=5):
         document = " ".join(chunks)
         new_chunks = []
 
-        # Split the chunks into batches
         num_batches = math.ceil(len(chunks) / batch_size)
         
         for i in range(num_batches):
             batch_chunks = chunks[i * batch_size : (i + 1) * batch_size]
+            formatted_chunks = "\n".join([f"chunk{i+1}: {chunk}" for i, chunk in enumerate(batch_chunks)])
             prompt = f"""
             <document>
             {document}
             </document>
             Here are the chunks we want to situate within the whole document:
             <chunks>
-            {' '.join(batch_chunks)}
+            {formatted_chunks}
             </chunks>
-            Please give a short succinct context to situate each of these chunks within the overall document for the purposes of improving search retrieval in a medical VQA context. 
-            Return your response in the following JSON format:
-            {{
-                "chunks": [
-                    {{
-                        "chunk": "<chunk1>",
-                        "context": "<context1>"
-                    }},
-                    {{
-                        "chunk": "<chunk2>",
-                        "context": "<context2>"
-                    }},
-                    ...
-                ]
-            }}
+            Please give a short succinct context to situate each of these chunks within the overall document for the purposes of improving search retrieval in a {domain} VQA context. 
+            Return the response in the following format:
+
+            chunk1: context for chunk1
+            chunk2: context for chunk2
             """
 
             data = {
@@ -141,27 +133,28 @@ def contextualize_chunks(chunks, api_key, batch_size=5):
 
             if response.status_code == 200:
                 response_data = response.json()
-
-                # Parse the JSON content
                 chunk_contexts = response_data['candidates'][0]['content']['parts'][0]['text']
-                chunk_contexts_json = json.loads(chunk_contexts)
+                
+                print(f"Response for batch {i+1}: {chunk_contexts}")
+                
+                # Parse the response using regex
+                matches = re.findall(r'(chunk\d+): (.+)', chunk_contexts)
+                
+                if len(matches) != len(batch_chunks):
+                    print("Context mismatch, appending original chunk...")
+                    new_chunks.extend(batch_chunks)
+                    continue
+                
+                for i, (chunk_id, context) in enumerate(matches):
+                    new_chunks.append(f"{context:} {batch_chunks[i]}")
 
-                for item in chunk_contexts_json['chunks']:
-                    context = item.get('context', '')
-                    chunk = item.get('chunk', '')
-
-                    if context:
-                        new_chunk = f"{context} {chunk}"
-                        new_chunks.append(new_chunk)
-                    else:
-                        new_chunks.append(chunk)
-
-            else: # In case of failure, add chunks without context
+            else:
                 print(f"API call failed with status code {response.status_code}")
-                print((f"Reponse: {response.text}"))
+                print(f"Response: {response.text}")
                 new_chunks.extend(batch_chunks)
 
         return new_chunks
+
     except Exception as e:
         raise Exception(f"Contextualize chunks failed: {e}")
 
