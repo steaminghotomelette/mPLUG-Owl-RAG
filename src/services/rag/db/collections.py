@@ -195,7 +195,7 @@ def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelMana
                 )
 
                 # Batch insert
-                if len(batch_data) % BATCH_SIZE == 0:
+                if len(batch_data) % 100 == 0:
                     table.add(batch_data)
                     batch_data = []
 
