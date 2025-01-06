@@ -45,12 +45,12 @@ async def upload_document_to_rag(
 # Reset User RAG collection
 # --------------------------------------------
 @router.post("/reset_rag")
-def reset_user_table():
+def reset_user_table(domain: str = Form(...),):
     """
     Endpoint to reset the user table in the RAG system.
     """
     try:
-        return rag.reset_user_table()
+        return rag.reset_user_table(domain)
     except Exception as e:
         raise Exception(f"Failed to reset user table: {e}")
 
