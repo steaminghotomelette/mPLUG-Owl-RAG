@@ -87,12 +87,13 @@ def search_rag_video(files_upload: List, query: str, embed_model: str, domain: s
     except Exception as e:
         raise Exception(f"Search RAG failed: {e}")
 
-def reset_rag():
+def reset_rag(domain: str):
     """
     Invoke reset of user collection for RAG using API.
     """
     url = f"{API_BASE_URL}/reset_rag"
-    response = post(url)
+    data = {"domain": domain}
+    response = post(url, data=data)
     return response.json()
 
 # --------------------------------------------
@@ -106,10 +107,13 @@ def display_search_result(result: List[Dict]):
         result (List[Dict]): list of dicts containing search result
     """
     if len(result) > 0:
-        df = pd.DataFrame(result).drop(columns=["id", "_rowid", "text_embedding", "image_embedding"], errors='ignore')
+        cols = ["text", "image_data", "title", "_relevance_score"]
+        df = pd.DataFrame(result)
+        disp_cols = [col for col in cols if col in df.columns]
+        df = df[disp_cols]
         df.rename(columns={
                 'text': 'Text',
-                'metadata': 'Metadata',
+                'title': 'Title',
                 '_relevance_score': 'Relevance Score',
             }, inplace=True)
         if 'image_data' in df.columns:
@@ -163,9 +167,9 @@ def sidebar_configuration():
     """
     st.sidebar.title("RAG Configuration")
     st.sidebar.subheader("RAG Settings")
+    st.sidebar.text(f"Current domain: \n{st.session_state.domain}")
     sidebar_text = st.sidebar.empty()
-    sidebar_text.text(f"Current embedding model: \
-                        {st.session_state.embedding_model}")
+    sidebar_text.text(f"Current embedding model: \n{st.session_state.embedding_model}")
     
     options = ["BLIP"]
     index = options.index(st.session_state.get("embedding_model", "BLIP"))
@@ -177,7 +181,9 @@ def sidebar_configuration():
         st.sidebar.warning("Switching the embedding model will store results separately.")
 
     if st.sidebar.button("Reset RAG", help='Resets the RAG documents uploaded.'):
-        st.toast(reset_rag())
+        st.toast(reset_rag(st.session_state.get("domain")))
+
+    
 
 # --------------------------------------------
 # Main Application

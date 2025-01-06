@@ -78,10 +78,11 @@ class RAGManager():
     # --------------------------------------------
     # Reset user collection
     # --------------------------------------------
-    def reset_user_table(self):
+    def reset_user_table(self, domain: str):
         """
         Reset RAG by dropping all collections of user table for all embedding models.
         """
+        self.switch_domain(domain)
         collections = self.db.list_collections()
         dropped = 0
         for model in EmbeddingModel:
@@ -206,7 +207,8 @@ class RAGManager():
                     merged_df["_relevance_score_left"].fillna(0) + 
                     merged_df["_relevance_score_right"].fillna(0)
                 )
-                merged_df = merged_df.drop(columns=["_score", "_relevance_score_left", "_relevance_score_right"])
+                merged_df = merged_df.drop(columns=["_score", "_relevance_score_left", "_relevance_score_right"],
+                                           errors="ignore")
                 final_table = pa.Table.from_pandas(merged_df)
                 return final_table
             
