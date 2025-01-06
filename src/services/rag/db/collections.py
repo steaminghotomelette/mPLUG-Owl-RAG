@@ -157,6 +157,10 @@ def insert_med_mm(table: lancedb.db.Table, embedding_model: EmbeddingModelManage
             
             if len(batch_data) != 0:
                 table.add(batch_data)
+
+            # Indexing
+            schemas.create_index(table)
+            
     except Exception as e:
         raise Exception(f"Failed inserting medical multimodal dataset: {e}")
 
@@ -199,6 +203,9 @@ def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelMana
         if batch_data:
             table.add(batch_data)
         
+        # Indexing
+        schemas.create_index(table)
+            
     except Exception as e:
         raise Exception(f"Failed inserting medical wiki pages: {e}")
 
