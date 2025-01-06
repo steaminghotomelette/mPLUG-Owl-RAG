@@ -157,6 +157,8 @@ def contextualize_chunks(chunks, api_key, batch_size=5):
                         new_chunks.append(chunk)
 
             else: # In case of failure, add chunks without context
+                print(f"API call failed with status code {response.status_code}")
+                print((f"Reponse: {response.text}"))
                 new_chunks.extend(batch_chunks)
 
         return new_chunks
@@ -211,6 +213,8 @@ def summarize_text(chunk: str, api_key: str) -> str:
             return summary
         else:
             # If there is an error, return the original chunk
+            print(f"API call failed with status code {response.status_code}")
+            print((f"Reponse: {response.text}"))
             return chunk
 
     except Exception as e:
