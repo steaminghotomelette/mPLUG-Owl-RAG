@@ -6,6 +6,11 @@ from typing import List, Dict, Tuple
 import pymupdf
 from langchain.text_splitter import CharacterTextSplitter
 import re
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 def chunk_document(document: BytesIO, max_size: int = 100, chunk_overlap: int = 20) -> Tuple[List[str], List[Dict]]:
     """Splits a PDF document into chunks of text.
@@ -75,13 +80,12 @@ def chunk_document(document: BytesIO, max_size: int = 100, chunk_overlap: int = 
     except Exception as e:
         raise Exception(f"Split document failed: {e}")
 
-def contextualize_chunks(chunks: List[str], api_key: str, domain: str, batch_size: int = 5) -> List[str]:
+def contextualize_chunks(chunks: List[str], domain: str, batch_size: int = 5) -> List[str]:
     """
     Uses the Gemini API to provide context for each chunk of text.
 
     Args:
         chunks (List[str]): Text chunks (when combined, comprise the entire document).
-        api_key (str): API key for the Gemini API.
         domain (str): Domain to tailor context (e.g., legal, medical, etc.).
         batch_size (int): Number of chunks to process per API call (batch size).
 
@@ -129,7 +133,7 @@ def contextualize_chunks(chunks: List[str], api_key: str, domain: str, batch_siz
                 "Content-Type": "application/json"
             }
 
-            response = requests.post(f"{url}?key={api_key}", headers=headers, data=json.dumps(data))
+            response = requests.post(f"{url}?key={GEMINI_API_KEY}", headers=headers, data=json.dumps(data))
 
             if response.status_code == 200:
                 response_data = response.json()
@@ -158,7 +162,7 @@ def contextualize_chunks(chunks: List[str], api_key: str, domain: str, batch_siz
     except Exception as e:
         raise Exception(f"Contextualize chunks failed: {e}")
 
-def summarize_text(chunk: str, api_key: str) -> str:
+def summarize_text(chunk: str) -> str:
     """
     Uses the Gemini API to provide context for each chunk of text.
 
@@ -197,7 +201,7 @@ def summarize_text(chunk: str, api_key: str) -> str:
         }
 
         # Make the API call for each chunk
-        response = requests.post(f"{url}?key={api_key}", headers=headers, data=json.dumps(data))
+        response = requests.post(f"{url}?key={GEMINI_API_KEY}", headers=headers, data=json.dumps(data))
 
         if response.status_code == 200:
             response_data = response.json()

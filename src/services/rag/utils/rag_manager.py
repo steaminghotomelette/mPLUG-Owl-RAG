@@ -121,7 +121,7 @@ class RAGManager():
                     # Chunk and summarize text from PDF
                     try:
                         chunk_text, chunk_metadata = chunk_document(file_content, max_size=200, chunk_overlap=20)
-                        text_content = contextualize_chunks(chunk_text, os.getenv('GEMINI_API_KEY'), domain)
+                        text_content = contextualize_chunks(chunk_text, domain)
                     except Exception as e:
                         raise Exception(f"Failed to extract PDF text: {e}")
 
