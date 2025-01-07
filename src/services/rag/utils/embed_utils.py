@@ -30,7 +30,7 @@ class EmbeddingModelManager:
 
                 case EmbeddingModel.BLIP:
                     
-                    self.model                  = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b", load_in_8bit=False, device_map=self.device)
+                    self.model                  = Blip2Model.from_pretrained("Salesforce/blip2-opt-2.7b", load_in_8bit=True, device_map=self.device)
                     self.processor              = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
                     self.get_image_embedding    = lambda x: x.pooler_output
                     self.get_text_embedding     = lambda x: x.hidden_states[-1].mean(dim=1)
