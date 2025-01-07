@@ -9,8 +9,7 @@ from db.constants import DOC_COLLECTION_NAME, MM_COLLECTION_NAME, USER_COLLECTIO
 from utils.rag_utils import Domain, deduplicate, combine_results
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from fastapi import UploadFile
-from utils.upload_utils import chunk_document, contextualize_chunks
-import os
+from utils.upload_utils import chunk_document, contextualize_chunks, preprocess_image
 
 class RAGManager():
     # --------------------------------------------
@@ -106,9 +105,11 @@ class RAGManager():
 
             for i, file in enumerate(files):
                 file_content = await file.read()
+                img_bytes = preprocess_image(file_content)
+                
                 # Extract embeddings based on file type
                 if file.content_type in ["image/png", "image/jpeg"]:
-                    text_embedding, img_embedding, raw_img = self._generate_embeddings(text=metadata[i], image=file_content)
+                    text_embedding, img_embedding, raw_img = self._generate_embeddings(text=metadata[i], image=img_bytes)
                     data.append({
                         "text": metadata[i],
                         "text_embedding": text_embedding,
