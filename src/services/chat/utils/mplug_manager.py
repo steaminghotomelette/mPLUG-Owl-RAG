@@ -19,17 +19,19 @@ class MplugOwl3ModelManager:
     # --------------------------------------------
     # Initialization
     # --------------------------------------------
-    def __init__(self, model_path: str, attn_implementation: str = "flash_attention_2", device: str = "cuda") -> None:
+    def __init__(self, model_path: str, attn_implementation: str = "flash_attention_2", device: str = "cuda", max_new_tokens: int = MAX_NEW_TOKENS, min_new_tokens: int = MIN_NEW_TOKENS) -> None:
 
         # Argument checks
         assert device in ["cuda", "mps"], "Device must be 'cuda' or 'mps'!"
         assert attn_implementation in ["sdpa", "flash_attention_2"], "Attention implementation must be 'sdpa' or 'flash_attention_2'!"
 
         # Attributes
-        self.device = device
-        self.model = None
-        self.tokenizer = None
-        self.processor = None
+        self.device         = device
+        self.model          = None
+        self.tokenizer      = None
+        self.processor      = None
+        self.max_new_tokens = max_new_tokens
+        self.min_new_tokens = min_new_tokens
 
         # Load the model
         self.model = AutoModel.from_pretrained(
@@ -112,8 +114,8 @@ class MplugOwl3ModelManager:
             messages,
             self.tokenizer,
             processor=self.processor,
-            max_new_tokens=self.MAX_NEW_TOKENS,
-            min_new_tokens=self.MIN_NEW_TOKENS,
+            max_new_tokens=self.max_new_tokens,
+            min_new_tokens=self.min_new_tokens,
             stream=streaming,
             sampling=sampling,
             **gen_params
