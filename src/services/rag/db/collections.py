@@ -178,7 +178,7 @@ def insert_med_docs(table: lancedb.db.Table, embedding_model: EmbeddingModelMana
             page_title = record['page_title']
 
             # Summarize the text to extract key medical details
-            summarized_text = summarize_text(page_text, os.getenv("GEMINI_API_KEY"))
+            summarized_text = summarize_text(page_text)
             chunks = text_splitter.split_text(summarized_text)
             
             # Process each chunk
