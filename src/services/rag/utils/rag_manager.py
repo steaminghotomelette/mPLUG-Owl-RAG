@@ -10,6 +10,7 @@ from utils.rag_utils import Domain, deduplicate, combine_results
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from fastapi import UploadFile
 from utils.upload_utils import chunk_document, contextualize_chunks, preprocess_image
+import json
 
 class RAGManager():
     # --------------------------------------------
@@ -105,17 +106,21 @@ class RAGManager():
 
             for i, file in enumerate(files):
                 file_content = await file.read()
-                img_bytes = preprocess_image(file_content)
                 
                 # Extract embeddings based on file type
                 if file.content_type in ["image/png", "image/jpeg"]:
+                    img_bytes = preprocess_image(file_content)
                     text_embedding, img_embedding, raw_img = self._generate_embeddings(text=metadata[i], image=img_bytes)
+                    metadata_dict = {
+                        "user_caption": metadata[i],
+                        "page_number": None,
+                    },
                     data.append({
                         "text": metadata[i],
                         "text_embedding": text_embedding,
                         "image_embedding": img_embedding,
                         "image_data": raw_img,
-                        "metadata": metadata[i],
+                        "metadata": json.dumps(metadata_dict),
                     })
 
                 else:
@@ -126,14 +131,18 @@ class RAGManager():
                     except Exception as e:
                         raise Exception(f"Failed to extract PDF text: {e}")
 
-                    for text in text_content:
-                        text_embedding, _, _ = self._generate_embeddings(text=text)
+                    for j in range(len(text_content)):
+                        text_embedding, _, _ = self._generate_embeddings(text=text_content[j])
+                        metadata_dict = {
+                            "user_caption": metadata[i],
+                            "page_number": chunk_metadata[j],
+                        },
                         data.append({
-                            "text": text,
+                            "text": text_content[j],
                             "text_embedding": text_embedding,
                             "image_embedding": None,
                             "image_data": None,
-                            "metadata": {**metadata[i], **chunk_metadata},
+                            "metadata": json.dumps(metadata_dict),
                         })
 
             response = self.db.insert(collection_name, data)
