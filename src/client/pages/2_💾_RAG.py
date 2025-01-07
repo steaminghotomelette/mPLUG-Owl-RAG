@@ -245,10 +245,10 @@ def main() -> None:
     # --------------------------------------------
     with st.expander("RAG Image Search", expanded=True):
         search_media_file = st.file_uploader(
-            "Upload Text/Image/Video for Searching",
+            "Upload Image for Searching",
             accept_multiple_files=True,
             key="search_media",
-            type=["pdf", "png", "jpg", "jpeg"],
+            type=["png", "jpg", "jpeg"],
             help="Supported formats: PDF, images (PNG, JPG, JPEG)"
         )
 
