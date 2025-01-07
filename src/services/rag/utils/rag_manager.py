@@ -10,7 +10,19 @@ from utils.rag_utils import Domain, deduplicate, combine_results
 from utils.embed_utils import EmbeddingModelManager, EmbeddingModel
 from fastapi import UploadFile
 from utils.upload_utils import chunk_document, contextualize_chunks, preprocess_image
+from db.schemas import create_index
 import json
+
+FTS_THRESHOLD = {
+    "Medical": {
+        "system": 4,
+        "user": 0.3
+    },
+    "Forensics": {
+        "system": 2,
+        "user": 0.2
+    }
+}
 
 class RAGManager():
     # --------------------------------------------
@@ -23,6 +35,7 @@ class RAGManager():
         self.doc_table = None
         self.user_table = None
         self.domain = Domain.DEFAULT
+        self.fts_threshold = FTS_THRESHOLD[self.domain.value]
         self.init_collections()
         self.load_collections()
 
@@ -73,6 +86,7 @@ class RAGManager():
         """
         if self.is_domain_changed(domain):
             self.domain = Domain(domain)
+            self.fts_threshold = FTS_THRESHOLD[self.domain.value]
             self.load_collections()
 
     # --------------------------------------------
@@ -146,7 +160,7 @@ class RAGManager():
                         })
 
             response = self.db.insert(collection_name, data)
-            await self.user_table._async_optimize()
+            create_index(self.user_table)
             return response
 
         except Exception as e:
@@ -187,14 +201,14 @@ class RAGManager():
             raise Exception(f"image vector search failed: {e}")
     
 
-    def _full_text_search(self, table, text: str) -> pa.Table:
+    def _full_text_search(self, table, text: str, threshold: float) -> pa.Table:
         """
         Perform full text search on text
         """
         try:
             res = table.search(text, query_type="fts",fts_columns="text")\
                         .limit(5)
-            res = res.to_arrow().filter(pa.compute.field('_score') >= 12)
+            res = res.to_arrow().filter(pa.compute.field('_score') >= threshold)
             if res.num_rows > 0:
                 # Rename _score to _relevance_score
                 new_cols = ['_relevance_score' if name=='_score' else name for name in res.column_names]
@@ -204,11 +218,11 @@ class RAGManager():
             raise Exception(f"full text search failed: {e}")
 
 
-    def _hybrid_search(self, table, text, image_embedding: list = []) -> pa.Table:
+    def _hybrid_search(self, table, text, fts_threshold: float, image_embedding: list = []) -> pa.Table:
         try:
             image_res, text_res = None, None
             if image_embedding: image_res = self._image_vector_search(table, image_embedding)        
-            if text:  text_res = self._full_text_search(table, text)
+            if text:  text_res = self._full_text_search(table, text, fts_threshold)
 
             if image_res and text_res:
                 df1 = image_res.to_pandas()
@@ -255,8 +269,8 @@ class RAGManager():
         try:
             if image:
                 image_embedding, _ = self.embedding_model_manager.embed_image(image)
-                return self._hybrid_search(self.image_text_table, text, image_embedding)
-            return self._full_text_search(self.image_text_table, text)
+                return self._hybrid_search(self.image_text_table, text, self.fts_threshold['system'], image_embedding)
+            return self._full_text_search(self.image_text_table, text, self.fts_threshold['system'])
         
         except Exception as e:
             raise Exception(f"Failed searching multimodal: {e}")
@@ -273,7 +287,7 @@ class RAGManager():
             pa.Table: PyArrow table of search result.
         """
         try:
-            return self._full_text_search(self.doc_table, text)
+            return self._full_text_search(self.doc_table, text, self.fts_threshold['system'])
         except Exception as e:
             raise Exception(f"Failed searching document: {e}")
 
@@ -291,8 +305,8 @@ class RAGManager():
         try:
             if image:
                 image_embedding, _ = self.embedding_model_manager.embed_image(image)
-                return self._hybrid_search(self.user_table, text, image_embedding)
-            return self._full_text_search(self.user_table, text)
+                return self._hybrid_search(self.user_table, text, self.fts_threshold['user'], image_embedding)
+            return self._full_text_search(self.user_table, text, self.fts_threshold['user'])
         except Exception as e:
             raise Exception(f"Failed searching user: {e}")
 
@@ -361,8 +375,8 @@ class RAGManager():
             m = pa.Table.from_pydict({})
 
             result = combine_results(user=u, multimodal=m, docs=d)
-            if "image_embedding" in result.column_names:
-                result = result.drop_columns(["image_data", "image_embedding"])
+            if "image_data" in result.column_names:
+                result = result.drop_columns(["image_data"])
             result = deduplicate(result).to_pylist()
             return {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),'success': True, 'content': result}
         except Exception as e:
