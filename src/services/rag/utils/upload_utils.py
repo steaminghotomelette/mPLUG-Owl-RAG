@@ -8,6 +8,7 @@ from langchain.text_splitter import CharacterTextSplitter
 import re
 from dotenv import load_dotenv
 import os
+from PIL import Image, ImageOps
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -217,3 +218,28 @@ def summarize_text(chunk: str) -> str:
 
     except Exception as e:
         raise Exception(f"Contextualize chunks failed: {e}")
+
+def preprocess_image(image_bytes: bytes) -> bytes:
+    """
+    Preprocesses the image by resizing, normalizing, and enhancing quality.
+
+    Args:
+        image_bytes (bytes): The raw image data in bytes.
+
+    Returns:
+        bytes: The processed image data in bytes.
+    """
+    # Open the image from the byte data
+    image = Image.open(BytesIO(image_bytes))
+
+    # Preprocess the image
+    target_size = (224, 224)
+    image = ImageOps.fit(image, target_size, Image.Resampling.LANCZOS)
+
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
+    # Convert the preprocessed image back to bytes
+    img_byte_arr = BytesIO()
+    image.save(img_byte_arr, format='PNG')
+    return img_byte_arr.getvalue()
