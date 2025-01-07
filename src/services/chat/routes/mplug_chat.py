@@ -127,7 +127,7 @@ async def image_chat_mplug(
         return {"response": response}
 
 @router.post("/video_chat", response_model=None)
-async def image_chat_mplug(
+async def video_chat_mplug(
     files: List[UploadFile] = File(...),
     messages: str = Form(...),
     gen_params: str = Form(None),
