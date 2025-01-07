@@ -38,7 +38,10 @@ def combine_results(user: pa.Table, multimodal: pa.Table, docs: pa.Table) -> pa.
         pa.Table: PyArrow table of sorted combined results.
     """
     try:
+        select = ['id','text','_relevance_score', 'image_data']
         res = pa.concat_tables([user, multimodal, docs], **_concat_tables_args)
+        res = res.drop([col for col in res.schema.names if col not in select])
+
         if res.num_rows > 0:
             res = res.sort_by([("_relevance_score", "descending")])
         return res
