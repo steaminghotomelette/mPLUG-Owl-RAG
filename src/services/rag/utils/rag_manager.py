@@ -146,6 +146,7 @@ class RAGManager():
                         })
 
             response = self.db.insert(collection_name, data)
+            await self.user_table._async_optimize()
             return response
 
         except Exception as e:
@@ -217,8 +218,16 @@ class RAGManager():
                     merged_df["_relevance_score_left"].fillna(0) + 
                     merged_df["_relevance_score_right"].fillna(0)
                 )
-                merged_df = merged_df.drop(columns=["_score", "_relevance_score_left", "_relevance_score_right"],
-                                           errors="ignore")
+
+                if "image_data_left" in merged_df.columns and "image_data_right" in merged_df.columns:
+                    merged_df["image_data"] = merged_df["image_data_left"].combine_first(merged_df["image_data_right"])
+                elif "image_data_left" in merged_df.columns:
+                    merged_df["image_data"] = merged_df["image_data_left"]
+                elif "image_data_right" in merged_df.columns:
+                    merged_df["image_data"] = merged_df["image_data_right"]
+
+                columns_to_drop = merged_df.filter(regex=r'(_left|_right)$').columns.tolist() + ['_score', 'text_embedding','image_embedding']
+                merged_df = merged_df.drop(columns=columns_to_drop, errors="ignore")
                 final_table = pa.Table.from_pandas(merged_df)
                 return final_table
             
