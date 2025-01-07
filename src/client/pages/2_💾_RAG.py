@@ -249,7 +249,7 @@ def main() -> None:
             accept_multiple_files=True,
             key="search_media",
             type=["png", "jpg", "jpeg"],
-            help="Supported formats: PDF, images (PNG, JPG, JPEG)"
+            help="Supported formats: Images (PNG, JPG, JPEG)"
         )
 
         if search_media_file:
