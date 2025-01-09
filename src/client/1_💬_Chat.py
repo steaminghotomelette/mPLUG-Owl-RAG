@@ -150,7 +150,7 @@ def main() -> None:
 
     st.sidebar.file_uploader(
         "Upload Video to LLM",
-        type=["gif", "mp4", "avi"],
+        type=["mp4", "avi"],
         key="video_uploader",
         disabled=not st.session_state["is_video_uploader_enabled"],
         on_change=handle_video_upload
