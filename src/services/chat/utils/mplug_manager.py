@@ -19,7 +19,7 @@ class MplugOwl3ModelManager:
     # --------------------------------------------
     # Initialization
     # --------------------------------------------
-    def __init__(self, model_path: str, attn_implementation: str = "flash_attention_2", device: str = "cuda", max_new_tokens: int = MAX_NEW_TOKENS, min_new_tokens: int = MIN_NEW_TOKENS) -> None:
+    def __init__(self, model_path: str, attn_implementation: str = "flash_attention_2", device: str = "cuda", max_new_tokens: int = MAX_NEW_TOKENS, min_new_tokens: int = MIN_NEW_TOKENS, repetition_penalty: float = None) -> None:
 
         # Argument checks
         assert device in ["cuda", "mps"], "Device must be 'cuda' or 'mps'!"
@@ -32,6 +32,7 @@ class MplugOwl3ModelManager:
         self.processor      = None
         self.max_new_tokens = max_new_tokens
         self.min_new_tokens = min_new_tokens
+        self.rep_penalty    = repetition_penalty
 
         # Load the model
         self.model = AutoModel.from_pretrained(
@@ -106,6 +107,10 @@ class MplugOwl3ModelManager:
         # Encode input media
         images = [self.encode_image(image) for image in images]
         videos = [self.encode_video(video) for video in videos]
+
+        # Enforce penalty
+        if self.rep_penalty:
+            gen_params["repetition_penalty"] = self.rep_penalty
 
         # Inference
         return self.model.chat(
